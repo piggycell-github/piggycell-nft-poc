@@ -181,7 +181,7 @@ function App() {
                 .then((res) => res[0][0]);
             await loadNFTs();
 
-            if ("ok" in result) {
+            if ("Ok" in result) {
                 alert("NFT가 성공적으로 전송되었습니다.");
             } else {
                 alert("전송에 실패했습니다: " + JSON.stringify(result.Err));
@@ -247,11 +247,11 @@ function App() {
 
             const result = await nftActor
                 .icrc7_mint(mintRequest)
-                .then((res) => res[0][0]);
+                .then((res) => res[0]);
             await loadCollectionInfo();
             await loadNFTs();
 
-            if ("ok" in result) {
+            if ("Ok" in result) {
                 alert("NFT가 성공적으로 민팅되었습니다.");
                 setMintInput({ metadata: "" });
             } else {
@@ -290,7 +290,7 @@ function App() {
                 .icrc37_approve_tokens(approveRequest)
                 .then((res) => res[0][0]);
 
-            if ("ok" in result) {
+            if ("Ok" in result) {
                 alert("NFT가 성공적으로 승인되었습니다.");
                 setShowApproveModal(false);
                 setApproveInput({ tokenId: "", spender: "" });
@@ -331,7 +331,7 @@ function App() {
                 .then((res) => res[0][0]);
             await loadNFTs();
 
-            if ("ok" in result) {
+            if ("Ok" in result) {
                 alert("승인된 NFT가 성공적으로 전송되었습니다.");
                 setShowTransferFromModal(false);
             } else {
