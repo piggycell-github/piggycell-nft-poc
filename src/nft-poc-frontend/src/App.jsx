@@ -37,6 +37,17 @@ function App() {
         to: "",
     });
     const [showTransferModal, setShowTransferModal] = useState(false);
+    const [approveInput, setApproveInput] = useState({
+        tokenId: "",
+        spender: "",
+    });
+    const [showApproveModal, setShowApproveModal] = useState(false);
+    const [showTransferFromModal, setShowTransferFromModal] = useState(false);
+    const [transferFromInput, setTransferFromInput] = useState({
+        tokenId: "",
+        from: "",
+        to: "",
+    });
 
     // 인증 초기화
     useEffect(() => {
@@ -132,11 +143,12 @@ function App() {
 
     // NFT 소유자 확인 함수
     const isOwner = async (tokenId) => {
+        if (!identity) return false;
         try {
             const owner = await nftActor.icrc7_owner_of([Number(tokenId)]);
             return (
                 owner[0][0].owner.toString() ===
-                identity?.getPrincipal().toText()
+                identity.getPrincipal().toText()
             );
         } catch (e) {
             console.error("소유자 확인 실패:", e);
@@ -175,16 +187,24 @@ function App() {
         try {
             const tokens = await nftActor.icrc7_tokens([], []);
             const metadata = await nftActor.icrc7_token_metadata(tokens);
-            const nftsWithOwnership = await Promise.all(
-                tokens.map(async (tokenId, index) => ({
-                    tokenId,
-                    metadata: metadata[index][0][0][1].Text,
-                    isOwner: await isOwner(tokenId),
-                })),
+            const owners = await nftActor.icrc7_owner_of(tokens);
+
+            const nftsWithDetails = await Promise.all(
+                tokens.map(async (tokenId, index) => {
+                    const _isOwner = await isOwner(tokenId);
+                    const isApproved = await checkApproval(tokenId);
+                    return {
+                        tokenId,
+                        metadata: metadata[index][0][0][1].Text,
+                        isOwner: _isOwner,
+                        isApproved,
+                        owner: owners[index][0].owner.toString(),
+                    };
+                }),
             );
-            setNftList(nftsWithOwnership);
+            setNftList(nftsWithDetails);
         } catch (e) {
-            console.error(e);
+            console.error("NFT 목록 로드 실패:", e);
         }
     };
 
@@ -216,6 +236,85 @@ function App() {
             setMintInput({ metadata: "" });
         } catch (e) {
             console.error("민팅 실패:", e);
+        }
+    };
+
+    // approve 함수 추가
+    const handleApprove = async (e) => {
+        e.preventDefault();
+        try {
+            const approveRequest = [
+                {
+                    token_id: BigInt(approveInput.tokenId),
+                    approval_info: {
+                        spender: {
+                            owner: Principal.fromText(approveInput.spender),
+                            subaccount: [],
+                        },
+                        from_subaccount: [],
+                        memo: [],
+                        created_at_time: [],
+                        expires_at: [],
+                    },
+                },
+            ];
+
+            await nftActor.icrc37_approve_tokens(approveRequest);
+            setShowApproveModal(false);
+            setApproveInput({ tokenId: "", spender: "" });
+        } catch (e) {
+            console.error("승인 실패:", e);
+        }
+    };
+
+    // transferFrom 함수 추가
+    const handleTransferFrom = async (tokenId, from, to) => {
+        try {
+            const transferFromRequest = [
+                {
+                    token_id: BigInt(tokenId),
+                    from: {
+                        owner: Principal.fromText(from),
+                        subaccount: [],
+                    },
+                    to: {
+                        owner: Principal.fromText(to),
+                        subaccount: [],
+                    },
+                    spender_subaccount: [],
+                    memo: [],
+                    created_at_time: [],
+                },
+            ];
+
+            await nftActor.icrc37_transfer_from(transferFromRequest);
+            await loadNFTs();
+        } catch (e) {
+            console.error("TransferFrom 실패:", e);
+        }
+    };
+
+    // NFT 승인 여부 확인 함수 추가
+    const checkApproval = async (tokenId) => {
+        if (!identity) return false;
+
+        try {
+            const isApprovedRequest = [
+                {
+                    token_id: BigInt(tokenId),
+                    from_subaccount: [],
+                    spender: {
+                        owner: identity.getPrincipal(),
+                        subaccount: [],
+                    },
+                },
+            ];
+            const approvalResult =
+                await nftActor.icrc37_is_approved(isApprovedRequest);
+            return approvalResult[0];
+        } catch (e) {
+            console.error("승인 확인 실패:", e);
+            return false;
         }
     };
 
@@ -325,19 +424,53 @@ function App() {
                                 <p className="font-bold">
                                     Token ID: {nft.tokenId.toString()}
                                 </p>
+                                <p>소유자: {formatPrincipalId(nft.owner)}</p>
                                 {nft.metadata && <p>{nft.metadata}</p>}
                                 {nft.isOwner && (
+                                    <div className="flex gap-2">
+                                        <button
+                                            onClick={() => {
+                                                setTransferInput({
+                                                    ...transferInput,
+                                                    tokenId:
+                                                        nft.tokenId.toString(),
+                                                });
+                                                setShowTransferModal(true);
+                                            }}
+                                            className="mt-2 bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+                                        >
+                                            전송하기
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                setApproveInput({
+                                                    ...approveInput,
+                                                    tokenId:
+                                                        nft.tokenId.toString(),
+                                                });
+                                                setShowApproveModal(true);
+                                            }}
+                                            className="mt-2 bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
+                                        >
+                                            승인하기
+                                        </button>
+                                    </div>
+                                )}
+                                {nft.isApproved && !nft.isOwner && (
                                     <button
                                         onClick={() => {
-                                            setTransferInput({
-                                                ...transferInput,
+                                            setTransferFromInput({
                                                 tokenId: nft.tokenId.toString(),
+                                                from: nft.owner,
+                                                to: identity
+                                                    .getPrincipal()
+                                                    .toText(),
                                             });
-                                            setShowTransferModal(true);
+                                            setShowTransferFromModal(true);
                                         }}
-                                        className="mt-2 bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+                                        className="mt-2 bg-purple-500 text-white px-4 py-2 rounded hover:bg-purple-600"
                                     >
-                                        전송하기
+                                        승인된 NFT 전송하기
                                     </button>
                                 )}
                             </div>
@@ -420,6 +553,111 @@ function App() {
                                 NFT 민팅하기
                             </button>
                         </form>
+                    </div>
+                )}
+
+                {/* Approve Modal */}
+                {showApproveModal && (
+                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+                        <div className="bg-white p-6 rounded-lg w-96">
+                            <h3 className="text-xl font-bold mb-4">NFT 승인</h3>
+                            <form
+                                onSubmit={handleApprove}
+                                className="space-y-4"
+                            >
+                                <div>
+                                    <label className="block mb-2">
+                                        승인받을 Principal ID:
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={approveInput.spender}
+                                        onChange={(e) =>
+                                            setApproveInput({
+                                                ...approveInput,
+                                                spender: e.target.value,
+                                            })
+                                        }
+                                        className="w-full p-2 border rounded"
+                                        required
+                                    />
+                                </div>
+                                <div className="flex justify-end space-x-2">
+                                    <button
+                                        type="button"
+                                        onClick={() =>
+                                            setShowApproveModal(false)
+                                        }
+                                        className="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600"
+                                    >
+                                        취소
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
+                                    >
+                                        승인
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                )}
+
+                {/* TransferFrom 모달 추가 */}
+                {showTransferFromModal && (
+                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+                        <div className="bg-white p-6 rounded-lg w-96">
+                            <h3 className="text-xl font-bold mb-4">
+                                승인된 NFT 전송
+                            </h3>
+                            <form
+                                onSubmit={(e) => {
+                                    e.preventDefault();
+                                    handleTransferFrom(
+                                        transferFromInput.tokenId,
+                                        transferFromInput.from,
+                                        transferFromInput.to,
+                                    );
+                                }}
+                                className="space-y-4"
+                            >
+                                <div>
+                                    <label className="block mb-2">
+                                        받는 사람 Principal ID:
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={transferFromInput.to}
+                                        onChange={(e) =>
+                                            setTransferFromInput({
+                                                ...transferFromInput,
+                                                to: e.target.value,
+                                            })
+                                        }
+                                        className="w-full p-2 border rounded"
+                                        required
+                                    />
+                                </div>
+                                <div className="flex justify-end space-x-2">
+                                    <button
+                                        type="button"
+                                        onClick={() =>
+                                            setShowTransferFromModal(false)
+                                        }
+                                        className="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600"
+                                    >
+                                        취소
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        className="bg-purple-500 text-white px-4 py-2 rounded hover:bg-purple-600"
+                                    >
+                                        전송
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
                     </div>
                 )}
             </div>
