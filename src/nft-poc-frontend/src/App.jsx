@@ -48,6 +48,7 @@ function App() {
         from: "",
         to: "",
     });
+    const [isLoading, setIsLoading] = useState(false);
 
     // 인증 초기화
     useEffect(() => {
@@ -159,6 +160,7 @@ function App() {
     // NFT 전송 함수
     const handleTransfer = async (e) => {
         e.preventDefault();
+        setIsLoading(true);
         try {
             const transferRequest = [
                 {
@@ -175,10 +177,14 @@ function App() {
 
             await nftActor.icrc7_transfer(transferRequest);
             await loadNFTs();
+            alert("NFT가 성공적으로 전송되었습니다.");
             setShowTransferModal(false);
             setTransferInput({ tokenId: "", to: "" });
         } catch (e) {
             console.error("전송 실패:", e);
+            alert("전송에 실패했습니다: " + e.message);
+        } finally {
+            setIsLoading(false);
         }
     };
 
@@ -211,6 +217,7 @@ function App() {
     // NFT 민팅
     const handleMint = async (e) => {
         e.preventDefault();
+        setIsLoading(true);
         try {
             const mintRequest = [
                 {
@@ -233,15 +240,20 @@ function App() {
             await nftActor.icrc7_mint(mintRequest);
             await loadCollectionInfo();
             await loadNFTs();
+            alert("NFT가 성공적으로 민팅되었습니다.");
             setMintInput({ metadata: "" });
         } catch (e) {
             console.error("민팅 실패:", e);
+            alert("민팅에 실패했습니다: " + e.message);
+        } finally {
+            setIsLoading(false);
         }
     };
 
     // approve 함수 추가
     const handleApprove = async (e) => {
         e.preventDefault();
+        setIsLoading(true);
         try {
             const approveRequest = [
                 {
@@ -260,15 +272,20 @@ function App() {
             ];
 
             await nftActor.icrc37_approve_tokens(approveRequest);
+            alert("NFT가 성공적으로 승인되었습니다.");
             setShowApproveModal(false);
             setApproveInput({ tokenId: "", spender: "" });
         } catch (e) {
             console.error("승인 실패:", e);
+            alert("승인에 실패했습니다: " + e.message);
+        } finally {
+            setIsLoading(false);
         }
     };
 
     // transferFrom 함수 추가
     const handleTransferFrom = async (tokenId, from, to) => {
+        setIsLoading(true);
         try {
             const transferFromRequest = [
                 {
@@ -289,8 +306,13 @@ function App() {
 
             await nftActor.icrc37_transfer_from(transferFromRequest);
             await loadNFTs();
+            alert("승인된 NFT가 성공적으로 전송되었습니다.");
+            setShowTransferFromModal(false);
         } catch (e) {
             console.error("TransferFrom 실패:", e);
+            alert("전송에 실패했습니다: " + e.message);
+        } finally {
+            setIsLoading(false);
         }
     };
 
@@ -366,6 +388,14 @@ function App() {
 
     return (
         <main className="min-h-screen bg-gray-100 p-8">
+            {isLoading && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                    <div className="bg-white p-6 rounded-lg flex flex-col items-center">
+                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mb-4"></div>
+                        <p className="text-lg font-semibold">처리중입니다...</p>
+                    </div>
+                </div>
+            )}
             <div className="max-w-4xl mx-auto">
                 <div className="flex justify-between items-center mb-8">
                     <img src="/logo2.svg" alt="DFINITY logo" className="h-12" />
