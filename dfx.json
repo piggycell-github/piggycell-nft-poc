@@ -1,0 +1,26 @@
+{
+  "canisters": {
+    "nft-poc-backend": {
+      "main": "src/nft-poc-backend/main.mo",
+      "type": "motoko"
+    },
+    "nft-poc-frontend": {
+      "dependencies": [
+        "nft-poc-backend"
+      ],
+      "source": [
+        "src/nft-poc-frontend/dist"
+      ],
+      "type": "assets",
+      "workspace": "nft-poc-frontend"
+    }
+  },
+  "defaults": {
+    "build": {
+      "args": "",
+      "packtool": ""
+    }
+  },
+  "output_env_file": ".env",
+  "version": 1
+}
