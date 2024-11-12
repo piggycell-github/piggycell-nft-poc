@@ -1,2 +1,5 @@
 [dependencies]
 base = "0.11.2"
+icrc3-mo = "0.2.4"
+icrc37-mo = "0.4.2"
+icrc7-mo = "0.4.1"
