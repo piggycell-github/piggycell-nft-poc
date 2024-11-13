@@ -22,6 +22,91 @@ oUQDQgAE6BJAH55JTbnx9Uz8YAZaF1Af1qdgEb2Y8Vcso8rMRG5/56T4sJdFjmYE
 42xEhBi4HZlkP/3fd8hOLtw27qBOGw==
 -----END EC PRIVATE KEY-----`;
 
+// API 호출을 위한 상수
+const API_BASE_URL = "https://app.piggycell.com";
+const API_ENDPOINTS = {
+    LIST: "/api/v1/seller/list",
+    DYNAMIC_LIST: "/api/v1/seller/dynamic-list",
+};
+const NFT_IMAGE_URLS = [
+    "https://namulabs-public-assets.s3.ap-northeast-2.amazonaws.com/hub8.jpeg",
+    "https://namulabs-public-assets.s3.ap-northeast-2.amazonaws.com/hub16.jpeg",
+    "https://namulabs-public-assets.s3.ap-northeast-2.amazonaws.com/hub32.jpeg",
+    "https://namulabs-public-assets.s3.ap-northeast-2.amazonaws.com/hub64.jpeg",
+];
+
+// NFT 이미지 URL을 가져오는 함수
+const getNftImageUrl = (number) => {
+    if (number <= 8) {
+        return NFT_IMAGE_URLS[0]; // hub8
+    } else if (number <= 16) {
+        return NFT_IMAGE_URLS[1]; // hub16
+    } else if (number <= 32) {
+        return NFT_IMAGE_URLS[2]; // hub32
+    } else {
+        return NFT_IMAGE_URLS[3]; // hub64
+    }
+};
+
+/**
+ * PiggyCell API에서 가맹점 데이터를 가져오고 병합하는 함수
+ * @returns {Promise<Array<Object>>} 병합된 가맹점 데이터 배열
+ * @throws {Error} API 호출 실패 또는 데이터 처리 오류 시
+ */
+const fetchPiggyCellData = async () => {
+    try {
+        // 병렬로 API 호출
+        const [listResponse, dynamicListResponse] = await Promise.all([
+            fetch(`${API_BASE_URL}${API_ENDPOINTS.LIST}`),
+            fetch(`${API_BASE_URL}${API_ENDPOINTS.DYNAMIC_LIST}`),
+        ]);
+
+        // 응답 상태 확인
+        if (!listResponse.ok || !dynamicListResponse.ok) {
+            throw new Error("API 호출 실패");
+        }
+
+        // JSON 데이터 파싱
+        const [{ list: sellerList }, { list: dynamicList }] = await Promise.all(
+            [listResponse.json(), dynamicListResponse.json()],
+        );
+
+        // 데이터 유효성 검증
+        if (!Array.isArray(sellerList) || !Array.isArray(dynamicList)) {
+            throw new Error("잘못된 데이터 형식");
+        }
+
+        // ID를 키로 하는 동적 데이터 맵 생성
+        const dynamicMap = new Map(dynamicList.map((item) => [item.id, item]));
+
+        // 데이터 병합
+        const mergedData = sellerList.map((seller) => {
+            let dynamicData = dynamicMap.get(seller.id);
+
+            if (!dynamicData) {
+                dynamicData = {
+                    locked: 0,
+                    stock: 0,
+                    surplus: 0,
+                    is_online: 0,
+                };
+
+                console.log("Dynamic data not found for seller:", seller.id);
+            }
+
+            return {
+                ...seller,
+                ...dynamicData,
+            };
+        });
+
+        return mergedData;
+    } catch (error) {
+        console.error("PiggyCell 데이터 조회 실패:", error);
+        throw new Error(`가맹점 데이터 조회 실패: ${error.message}`);
+    }
+};
+
 function App() {
     const [nftActor, setNftActor] = useState(nft_poc_backend);
     const [authClient, setAuthClient] = useState(null);
@@ -56,6 +141,7 @@ function App() {
     const [hasMore, setHasMore] = useState(true);
     const PAGE_SIZE = 100;
     const [isNFTListExpanded, setIsNFTListExpanded] = useState(false);
+    const [isNFTMintExpanded, setIsNFTMintExpanded] = useState(false);
 
     // 인증 초기화
     useEffect(() => {
@@ -478,6 +564,53 @@ function App() {
         return Array.from({ length: end - start + 1 }, (_, i) => start + i);
     };
 
+    // PiggyCell 데이터로 NFT 민팅하는 함수 추가
+    const handlePiggyCellMint = async () => {
+        setIsLoading(true);
+        try {
+            const piggyCellData = await fetchPiggyCellData();
+
+            const mintRequests = piggyCellData.map((item, index) => ({
+                token_id: BigInt(totalSupply) + BigInt(index + 1),
+                owner: [
+                    {
+                        owner: identity.getPrincipal(),
+                        subaccount: [],
+                    },
+                ],
+                metadata: {
+                    Text: JSON.stringify({
+                        description: item.name,
+                        image: getNftImageUrl(item.stock + item.surplus),
+                        slot: item.stock + item.surplus,
+                    }),
+                },
+                memo: [],
+                override: false,
+                created_at_time: [],
+            }));
+
+            const result = await nftActor
+                .icrc7_mint(mintRequests)
+                .then((res) => res[0]);
+            await loadCollectionInfo();
+            await loadNFTs();
+
+            if ("Ok" in result) {
+                alert(
+                    `${piggyCellData.length}개의 NFT가 성공적으로 민팅되었습니다.`,
+                );
+            } else {
+                alert("민팅에 실패했습니다.");
+            }
+        } catch (e) {
+            console.error("PiggyCell 민팅 실패:", e);
+            alert("민팅에 실패했습니다: " + e.message);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
     return (
         <main className="min-h-screen bg-gray-100 p-8">
             {isLoading && (
@@ -599,13 +732,6 @@ function App() {
                                         key={nft.tokenId.toString()}
                                         className="border rounded p-4"
                                     >
-                                        <p className="font-bold">
-                                            Token ID: {nft.tokenId.toString()}
-                                        </p>
-                                        <p>
-                                            소유자:{" "}
-                                            {formatPrincipalId(nft.owner)}
-                                        </p>
                                         {nft.metadata &&
                                             (() => {
                                                 try {
@@ -614,6 +740,13 @@ function App() {
                                                     );
                                                     return (
                                                         <>
+                                                            {metadata.description && (
+                                                                <p className="font-bold text-lg mb-2">
+                                                                    {
+                                                                        metadata.description
+                                                                    }
+                                                                </p>
+                                                            )}
                                                             {metadata.image && (
                                                                 <img
                                                                     src={
@@ -627,15 +760,17 @@ function App() {
                                                                         e.target.onerror =
                                                                             null;
                                                                         e.target.src =
-                                                                            "/placeholder.png"; // 에러 시 기본 이미지
+                                                                            "/placeholder.png";
                                                                     }}
                                                                 />
                                                             )}
-                                                            {metadata.description && (
-                                                                <p className="text-gray-600">
+                                                            {metadata.slot && (
+                                                                <p className="text-sm text-gray-600 mt-2">
+                                                                    보유 슬롯:{" "}
                                                                     {
-                                                                        metadata.description
+                                                                        metadata.slot
                                                                     }
+                                                                    개
                                                                 </p>
                                                             )}
                                                         </>
@@ -646,6 +781,13 @@ function App() {
                                                     );
                                                 }
                                             })()}
+                                        <p className="text-gray-600 mb-2">
+                                            소유자:{" "}
+                                            {formatPrincipalId(nft.owner)}
+                                        </p>
+                                        <p className="text-xs text-gray-400 mt-4">
+                                            Token ID: {nft.tokenId.toString()}
+                                        </p>
                                         {identity &&
                                             (forceMode || nft.isOwner) && (
                                                 <div className="flex gap-2">
@@ -863,69 +1005,124 @@ function App() {
                 {identity && (
                     <div className="bg-white rounded-lg shadow p-6">
                         <h2 className="text-2xl font-bold mb-4">NFT 민팅</h2>
-                        <form onSubmit={handleMint} className="space-y-4">
-                            <div>
-                                <label className="block mb-2">설명:</label>
-                                <input
-                                    type="text"
-                                    value={mintInput.metadata}
-                                    onChange={(e) =>
-                                        setMintInput({
-                                            ...mintInput,
-                                            metadata: e.target.value,
-                                        })
-                                    }
-                                    className="w-full p-2 border rounded"
-                                    placeholder="NFT에 대한 설명을 입력하세요"
-                                />
-                            </div>
-                            <div>
-                                <label className="block mb-2">
-                                    이미지 URL:
-                                </label>
-                                <input
-                                    type="url"
-                                    value={mintInput.imageUrl}
-                                    onChange={(e) =>
-                                        setMintInput({
-                                            ...mintInput,
-                                            imageUrl: e.target.value,
-                                        })
-                                    }
-                                    className="w-full p-2 border rounded"
-                                    placeholder="이미지 URL을 입력하세요"
-                                />
-                            </div>
-                            <div>
-                                <label className="block mb-2">민팅 수량:</label>
-                                <input
-                                    type="number"
-                                    min="1"
-                                    max="10000"
-                                    value={mintInput.quantity}
-                                    onChange={(e) =>
-                                        setMintInput({
-                                            ...mintInput,
-                                            quantity: Math.min(
-                                                10000,
-                                                Math.max(
-                                                    1,
-                                                    parseInt(e.target.value) ||
-                                                        1,
-                                                ),
-                                            ),
-                                        })
-                                    }
-                                    className="w-full p-2 border rounded"
-                                />
-                            </div>
+                        <div className="space-y-4">
                             <button
-                                type="submit"
-                                className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
+                                onClick={handlePiggyCellMint}
+                                className="w-full bg-indigo-500 text-white px-4 py-2 rounded hover:bg-indigo-600"
                             >
-                                NFT 민팅하기 ({mintInput.quantity}개)
+                                PiggyCell 데이터로 NFT 민팅하기
                             </button>
-                        </form>
+
+                            <div className="border rounded-lg">
+                                <button
+                                    onClick={() =>
+                                        setIsNFTMintExpanded(!isNFTMintExpanded)
+                                    }
+                                    className="w-full flex justify-between items-center p-4 hover:bg-gray-50"
+                                >
+                                    <span className="font-semibold">
+                                        일반 NFT 민팅하기
+                                    </span>
+                                    <svg
+                                        className={`w-6 h-6 transform transition-transform ${
+                                            isNFTMintExpanded
+                                                ? "rotate-180"
+                                                : ""
+                                        }`}
+                                        fill="none"
+                                        stroke="currentColor"
+                                        viewBox="0 0 24 24"
+                                    >
+                                        <path
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                            strokeWidth={2}
+                                            d="M19 9l-7 7-7-7"
+                                        />
+                                    </svg>
+                                </button>
+
+                                {isNFTMintExpanded && (
+                                    <div className="p-4 border-t">
+                                        <form
+                                            onSubmit={handleMint}
+                                            className="space-y-4"
+                                        >
+                                            <div>
+                                                <label className="block mb-2">
+                                                    설명:
+                                                </label>
+                                                <input
+                                                    type="text"
+                                                    value={mintInput.metadata}
+                                                    onChange={(e) =>
+                                                        setMintInput({
+                                                            ...mintInput,
+                                                            metadata:
+                                                                e.target.value,
+                                                        })
+                                                    }
+                                                    className="w-full p-2 border rounded"
+                                                    placeholder="NFT에 대한 설명을 입력하세요"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block mb-2">
+                                                    이미지 URL:
+                                                </label>
+                                                <input
+                                                    type="url"
+                                                    value={mintInput.imageUrl}
+                                                    onChange={(e) =>
+                                                        setMintInput({
+                                                            ...mintInput,
+                                                            imageUrl:
+                                                                e.target.value,
+                                                        })
+                                                    }
+                                                    className="w-full p-2 border rounded"
+                                                    placeholder="이미지 URL을 입력하세요"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block mb-2">
+                                                    민팅 수량:
+                                                </label>
+                                                <input
+                                                    type="number"
+                                                    min="1"
+                                                    max="10000"
+                                                    value={mintInput.quantity}
+                                                    onChange={(e) =>
+                                                        setMintInput({
+                                                            ...mintInput,
+                                                            quantity: Math.min(
+                                                                10000,
+                                                                Math.max(
+                                                                    1,
+                                                                    parseInt(
+                                                                        e.target
+                                                                            .value,
+                                                                    ) || 1,
+                                                                ),
+                                                            ),
+                                                        })
+                                                    }
+                                                    className="w-full p-2 border rounded"
+                                                />
+                                            </div>
+                                            <button
+                                                type="submit"
+                                                className="w-full bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
+                                            >
+                                                NFT 민팅하기 (
+                                                {mintInput.quantity}개)
+                                            </button>
+                                        </form>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
                     </div>
                 )}
 
