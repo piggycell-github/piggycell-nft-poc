@@ -31,6 +31,8 @@ function App() {
     const [nftList, setNftList] = useState([]);
     const [mintInput, setMintInput] = useState({
         metadata: "",
+        imageUrl: "",
+        quantity: 1,
     });
     const [transferInput, setTransferInput] = useState({
         tokenId: "",
@@ -50,6 +52,10 @@ function App() {
     });
     const [isLoading, setIsLoading] = useState(false);
     const [forceMode, setForceMode] = useState(false);
+    const [currentPage, setCurrentPage] = useState(0);
+    const [hasMore, setHasMore] = useState(true);
+    const PAGE_SIZE = 100;
+    const [isNFTListExpanded, setIsNFTListExpanded] = useState(false);
 
     // 인증 초기화
     useEffect(() => {
@@ -199,7 +205,15 @@ function App() {
     // NFT 목록 로드 함수 수정
     const loadNFTs = async () => {
         try {
-            const tokens = await nftActor.icrc7_tokens([], []);
+            const startIndex = currentPage * PAGE_SIZE;
+            const tokens = await nftActor.icrc7_tokens(
+                [startIndex],
+                [PAGE_SIZE],
+            );
+
+            // 다음 페이지 존재 여부 확인
+            setHasMore(tokens.length === PAGE_SIZE);
+
             const metadata = await nftActor.icrc7_token_metadata(tokens);
             const owners = await nftActor.icrc7_owner_of(tokens);
 
@@ -222,28 +236,47 @@ function App() {
         }
     };
 
-    // NFT 민팅
+    // 페이지 변경 핸들러 추가
+    const handlePageChange = (newPage) => {
+        setCurrentPage(newPage);
+    };
+
+    // useEffect 수정 - currentPage가 변경될 때마다 loadNFTs 호출
+    useEffect(() => {
+        if (nftActor) {
+            loadNFTs();
+        }
+    }, [nftActor, currentPage]);
+
+    // NFT 팅
     const handleMint = async (e) => {
         e.preventDefault();
         setIsLoading(true);
         try {
-            const mintRequest = [
-                {
-                    token_id: BigInt(totalSupply) + BigInt(1),
-                    owner: [
-                        {
-                            owner: identity.getPrincipal(),
-                            subaccount: [],
-                        },
-                    ],
-                    metadata: {
-                        Text: mintInput.metadata,
+            const getMintRequestItem = (index) => ({
+                token_id: BigInt(totalSupply) + BigInt(index + 1),
+                owner: [
+                    {
+                        owner: identity.getPrincipal(),
+                        subaccount: [],
                     },
-                    memo: [],
-                    override: false,
-                    created_at_time: [],
+                ],
+                metadata: {
+                    Text: JSON.stringify({
+                        description: mintInput.metadata,
+                        image: mintInput.imageUrl,
+                    }),
                 },
-            ];
+                memo: [],
+                override: false,
+                created_at_time: [],
+            });
+
+            // quantity만큼의 배열 생성
+            const mintRequest = Array.from(
+                { length: Number(mintInput.quantity) },
+                (_, i) => getMintRequestItem(i),
+            );
 
             const result = await nftActor
                 .icrc7_mint(mintRequest)
@@ -253,7 +286,7 @@ function App() {
 
             if ("Ok" in result) {
                 alert("NFT가 성공적으로 민팅되었습니다.");
-                setMintInput({ metadata: "" });
+                setMintInput({ metadata: "", imageUrl: "", quantity: 1 });
             } else {
                 alert("민팅에 실패했습니다.");
             }
@@ -339,7 +372,7 @@ function App() {
             }
         } catch (e) {
             console.error("TransferFrom 실패:", e);
-            alert("전송에 실패했습니다: " + e.message);
+            alert("송에 실패했습니다: " + e.message);
         } finally {
             setIsLoading(false);
         }
@@ -413,6 +446,36 @@ function App() {
         const text = principal.toString();
         if (text.length <= 12) return text;
         return `${text.slice(0, 8)}...${text.slice(-8)}`;
+    };
+
+    // 페이지네이션 헬퍼 함수 추가
+    const getPageRange = (currentPage, totalPages, maxButtons = 5) => {
+        // 전체 페이지가 최대 버튼 수보다 작은 경우
+        if (totalPages <= maxButtons) {
+            return Array.from({ length: totalPages }, (_, i) => i);
+        }
+
+        // 현재 페이지를 중앙에 두고 양쪽에 표시할 페이지 수 계산
+        const sideButtons = Math.floor(maxButtons / 2);
+        let start = currentPage - sideButtons;
+        let end = currentPage + sideButtons;
+
+        // 시작 페이지가 0보다 작은 경우 조정
+        if (start < 0) {
+            end += Math.abs(start);
+            start = 0;
+        }
+
+        // 끝 페이지가 총 페이지수를 초과하는 경우 조정
+        if (end >= totalPages) {
+            start -= end - totalPages + 1;
+            end = totalPages - 1;
+        }
+
+        // 시작 페이지가 0보다 작아지지 않도록 재조정
+        start = Math.max(start, 0);
+
+        return Array.from({ length: end - start + 1 }, (_, i) => start + i);
     };
 
     return (
@@ -502,71 +565,251 @@ function App() {
                 </div>
 
                 <div className="bg-white rounded-lg shadow p-6 mb-6">
-                    <h2 className="text-2xl font-bold mb-4">NFT 목록</h2>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {nftList.map((nft) => (
-                            <div
-                                key={nft.tokenId.toString()}
-                                className="border rounded p-4"
-                            >
-                                <p className="font-bold">
-                                    Token ID: {nft.tokenId.toString()}
-                                </p>
-                                <p>소유자: {formatPrincipalId(nft.owner)}</p>
-                                {nft.metadata && <p>{nft.metadata}</p>}
-                                {identity && (forceMode || nft.isOwner) && (
-                                    <div className="flex gap-2">
-                                        <button
-                                            onClick={() => {
-                                                setTransferInput({
-                                                    ...transferInput,
-                                                    tokenId:
-                                                        nft.tokenId.toString(),
-                                                });
-                                                setShowTransferModal(true);
-                                            }}
-                                            className="mt-2 bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
-                                        >
-                                            전송하기
-                                        </button>
-                                        <button
-                                            onClick={() => {
-                                                setApproveInput({
-                                                    ...approveInput,
-                                                    tokenId:
-                                                        nft.tokenId.toString(),
-                                                });
-                                                setShowApproveModal(true);
-                                            }}
-                                            className="mt-2 bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
-                                        >
-                                            승인하기
-                                        </button>
-                                    </div>
-                                )}
-                                {identity &&
-                                    (forceMode || nft.isApproved) &&
-                                    (forceMode || !nft.isOwner) && (
-                                        <button
-                                            onClick={() => {
-                                                setTransferFromInput({
-                                                    tokenId:
-                                                        nft.tokenId.toString(),
-                                                    from: nft.owner,
-                                                    to: identity
-                                                        .getPrincipal()
-                                                        .toText(),
-                                                });
-                                                setShowTransferFromModal(true);
-                                            }}
-                                            className="mt-2 bg-purple-500 text-white px-4 py-2 rounded hover:bg-purple-600"
-                                        >
-                                            승인된 NFT 전송하기
-                                        </button>
-                                    )}
-                            </div>
-                        ))}
+                    <div
+                        className="flex justify-between items-center cursor-pointer"
+                        onClick={() => setIsNFTListExpanded(!isNFTListExpanded)}
+                    >
+                        <h2 className="text-2xl font-bold">
+                            NFT 목록 (
+                            {totalSupply
+                                .toString()
+                                .replace(/\B(?=(\d{3})+(?!\d))/g, ",")}
+                            )
+                        </h2>
+                        <svg
+                            className={`w-6 h-6 transform transition-transform ${isNFTListExpanded ? "rotate-180" : ""}`}
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                        >
+                            <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M19 9l-7 7-7-7"
+                            />
+                        </svg>
                     </div>
+
+                    {isNFTListExpanded && (
+                        <>
+                            <div className="mt-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                {nftList.map((nft) => (
+                                    <div
+                                        key={nft.tokenId.toString()}
+                                        className="border rounded p-4"
+                                    >
+                                        <p className="font-bold">
+                                            Token ID: {nft.tokenId.toString()}
+                                        </p>
+                                        <p>
+                                            소유자:{" "}
+                                            {formatPrincipalId(nft.owner)}
+                                        </p>
+                                        {nft.metadata &&
+                                            (() => {
+                                                try {
+                                                    const metadata = JSON.parse(
+                                                        nft.metadata,
+                                                    );
+                                                    return (
+                                                        <>
+                                                            {metadata.image && (
+                                                                <img
+                                                                    src={
+                                                                        metadata.image
+                                                                    }
+                                                                    alt="NFT"
+                                                                    className="w-full h-48 object-cover rounded my-2"
+                                                                    onError={(
+                                                                        e,
+                                                                    ) => {
+                                                                        e.target.onerror =
+                                                                            null;
+                                                                        e.target.src =
+                                                                            "/placeholder.png"; // 에러 시 기본 이미지
+                                                                    }}
+                                                                />
+                                                            )}
+                                                            {metadata.description && (
+                                                                <p className="text-gray-600">
+                                                                    {
+                                                                        metadata.description
+                                                                    }
+                                                                </p>
+                                                            )}
+                                                        </>
+                                                    );
+                                                } catch {
+                                                    return (
+                                                        <p>{nft.metadata}</p>
+                                                    );
+                                                }
+                                            })()}
+                                        {identity &&
+                                            (forceMode || nft.isOwner) && (
+                                                <div className="flex gap-2">
+                                                    <button
+                                                        onClick={() => {
+                                                            setTransferInput({
+                                                                ...transferInput,
+                                                                tokenId:
+                                                                    nft.tokenId.toString(),
+                                                            });
+                                                            setShowTransferModal(
+                                                                true,
+                                                            );
+                                                        }}
+                                                        className="mt-2 bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+                                                    >
+                                                        전송하기
+                                                    </button>
+                                                    <button
+                                                        onClick={() => {
+                                                            setApproveInput({
+                                                                ...approveInput,
+                                                                tokenId:
+                                                                    nft.tokenId.toString(),
+                                                            });
+                                                            setShowApproveModal(
+                                                                true,
+                                                            );
+                                                        }}
+                                                        className="mt-2 bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
+                                                    >
+                                                        승인하기
+                                                    </button>
+                                                </div>
+                                            )}
+                                        {identity &&
+                                            (forceMode || nft.isApproved) &&
+                                            (forceMode || !nft.isOwner) && (
+                                                <button
+                                                    onClick={() => {
+                                                        setTransferFromInput({
+                                                            tokenId:
+                                                                nft.tokenId.toString(),
+                                                            from: nft.owner,
+                                                            to: identity
+                                                                .getPrincipal()
+                                                                .toText(),
+                                                        });
+                                                        setShowTransferFromModal(
+                                                            true,
+                                                        );
+                                                    }}
+                                                    className="mt-2 bg-purple-500 text-white px-4 py-2 rounded hover:bg-purple-600"
+                                                >
+                                                    승인된 NFT 전송하기
+                                                </button>
+                                            )}
+                                    </div>
+                                ))}
+                            </div>
+
+                            {/* 페이지네이션 컨트롤 수정 */}
+                            <div className="mt-6 flex flex-col items-center gap-4">
+                                <div className="flex items-center gap-4">
+                                    <button
+                                        onClick={() =>
+                                            handlePageChange(currentPage - 1)
+                                        }
+                                        disabled={currentPage === 0}
+                                        className={`px-4 py-2 rounded ${
+                                            currentPage === 0
+                                                ? "bg-gray-300 cursor-not-allowed"
+                                                : "bg-blue-500 hover:bg-blue-600 text-white"
+                                        }`}
+                                    >
+                                        이전
+                                    </button>
+                                    <div className="flex items-center gap-2">
+                                        {currentPage > 2 && (
+                                            <>
+                                                <button
+                                                    onClick={() =>
+                                                        handlePageChange(0)
+                                                    }
+                                                    className="px-4 py-2 rounded bg-gray-200 hover:bg-gray-300"
+                                                >
+                                                    1
+                                                </button>
+                                                <span className="px-2">
+                                                    ...
+                                                </span>
+                                            </>
+                                        )}
+                                        {getPageRange(
+                                            currentPage,
+                                            Math.ceil(
+                                                Number(totalSupply) / PAGE_SIZE,
+                                            ),
+                                        ).map((pageNum) => (
+                                            <button
+                                                key={pageNum}
+                                                onClick={() =>
+                                                    handlePageChange(pageNum)
+                                                }
+                                                className={`px-4 py-2 rounded ${
+                                                    currentPage === pageNum
+                                                        ? "bg-blue-500 text-white"
+                                                        : "bg-gray-200 hover:bg-gray-300"
+                                                }`}
+                                            >
+                                                {pageNum + 1}
+                                            </button>
+                                        ))}
+                                        {currentPage <
+                                            Math.ceil(
+                                                Number(totalSupply) / PAGE_SIZE,
+                                            ) -
+                                                3 && (
+                                            <>
+                                                <span className="px-2">
+                                                    ...
+                                                </span>
+                                                <button
+                                                    onClick={() =>
+                                                        handlePageChange(
+                                                            Math.ceil(
+                                                                Number(
+                                                                    totalSupply,
+                                                                ) / PAGE_SIZE,
+                                                            ) - 1,
+                                                        )
+                                                    }
+                                                    className="px-4 py-2 rounded bg-gray-200 hover:bg-gray-300"
+                                                >
+                                                    {Math.ceil(
+                                                        Number(totalSupply) /
+                                                            PAGE_SIZE,
+                                                    )}
+                                                </button>
+                                            </>
+                                        )}
+                                    </div>
+                                    <button
+                                        onClick={() =>
+                                            handlePageChange(currentPage + 1)
+                                        }
+                                        disabled={!hasMore}
+                                        className={`px-4 py-2 rounded ${
+                                            !hasMore
+                                                ? "bg-gray-300 cursor-not-allowed"
+                                                : "bg-blue-500 hover:bg-blue-600 text-white"
+                                        }`}
+                                    >
+                                        다음
+                                    </button>
+                                </div>
+                                <div className="text-sm text-gray-600">
+                                    총{" "}
+                                    {Math.ceil(Number(totalSupply) / PAGE_SIZE)}{" "}
+                                    페이지 중 {currentPage + 1} 페이지
+                                </div>
+                            </div>
+                        </>
+                    )}
                 </div>
 
                 {/* Transfer Modal */}
@@ -622,9 +865,7 @@ function App() {
                         <h2 className="text-2xl font-bold mb-4">NFT 민팅</h2>
                         <form onSubmit={handleMint} className="space-y-4">
                             <div>
-                                <label className="block mb-2">
-                                    메타데이터:
-                                </label>
+                                <label className="block mb-2">설명:</label>
                                 <input
                                     type="text"
                                     value={mintInput.metadata}
@@ -635,13 +876,54 @@ function App() {
                                         })
                                     }
                                     className="w-full p-2 border rounded"
+                                    placeholder="NFT에 대한 설명을 입력하세요"
+                                />
+                            </div>
+                            <div>
+                                <label className="block mb-2">
+                                    이미지 URL:
+                                </label>
+                                <input
+                                    type="url"
+                                    value={mintInput.imageUrl}
+                                    onChange={(e) =>
+                                        setMintInput({
+                                            ...mintInput,
+                                            imageUrl: e.target.value,
+                                        })
+                                    }
+                                    className="w-full p-2 border rounded"
+                                    placeholder="이미지 URL을 입력하세요"
+                                />
+                            </div>
+                            <div>
+                                <label className="block mb-2">민팅 수량:</label>
+                                <input
+                                    type="number"
+                                    min="1"
+                                    max="10000"
+                                    value={mintInput.quantity}
+                                    onChange={(e) =>
+                                        setMintInput({
+                                            ...mintInput,
+                                            quantity: Math.min(
+                                                10000,
+                                                Math.max(
+                                                    1,
+                                                    parseInt(e.target.value) ||
+                                                        1,
+                                                ),
+                                            ),
+                                        })
+                                    }
+                                    className="w-full p-2 border rounded"
                                 />
                             </div>
                             <button
                                 type="submit"
                                 className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
                             >
-                                NFT 민팅하기
+                                NFT 민팅하기 ({mintInput.quantity}개)
                             </button>
                         </form>
                     </div>
