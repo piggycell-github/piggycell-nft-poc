@@ -22,89 +22,28 @@ oUQDQgAE6BJAH55JTbnx9Uz8YAZaF1Af1qdgEb2Y8Vcso8rMRG5/56T4sJdFjmYE
 42xEhBi4HZlkP/3fd8hOLtw27qBOGw==
 -----END EC PRIVATE KEY-----`;
 
-// API 호출을 위한 상수
-const API_BASE_URL = "https://app.piggycell.com";
-const API_ENDPOINTS = {
-    LIST: "/api/v1/seller/list",
-    DYNAMIC_LIST: "/api/v1/seller/dynamic-list",
-};
-const NFT_IMAGE_URLS = [
-    "https://namulabs-public-assets.s3.ap-northeast-2.amazonaws.com/hub8.jpeg",
-    "https://namulabs-public-assets.s3.ap-northeast-2.amazonaws.com/hub16.jpeg",
-    "https://namulabs-public-assets.s3.ap-northeast-2.amazonaws.com/hub32.jpeg",
-    "https://namulabs-public-assets.s3.ap-northeast-2.amazonaws.com/hub64.jpeg",
-];
-
-// NFT 이미지 URL을 가져오는 함수
-const getNftImageUrl = (number) => {
-    if (number <= 8) {
-        return NFT_IMAGE_URLS[0]; // hub8
-    } else if (number <= 16) {
-        return NFT_IMAGE_URLS[1]; // hub16
-    } else if (number <= 32) {
-        return NFT_IMAGE_URLS[2]; // hub32
-    } else {
-        return NFT_IMAGE_URLS[3]; // hub64
-    }
-};
-
-/**
- * PiggyCell API에서 가맹점 데이터를 가져오고 병합하는 함수
- * @returns {Promise<Array<Object>>} 병합된 가맹점 데이터 배열
- * @throws {Error} API 호출 실패 또는 데이터 처리 오류 시
- */
-const fetchPiggyCellData = async () => {
-    try {
-        // 병렬로 API 호출
-        const [listResponse, dynamicListResponse] = await Promise.all([
-            fetch(`${API_BASE_URL}${API_ENDPOINTS.LIST}`),
-            fetch(`${API_BASE_URL}${API_ENDPOINTS.DYNAMIC_LIST}`),
-        ]);
-
-        // 응답 상태 확인
-        if (!listResponse.ok || !dynamicListResponse.ok) {
-            throw new Error("API 호출 실패");
-        }
-
-        // JSON 데이터 파싱
-        const [{ list: sellerList }, { list: dynamicList }] = await Promise.all(
-            [listResponse.json(), dynamicListResponse.json()],
-        );
-
-        // 데이터 유효성 검증
-        if (!Array.isArray(sellerList) || !Array.isArray(dynamicList)) {
-            throw new Error("잘못된 데이터 형식");
-        }
-
-        // ID를 키로 하는 동적 데이터 맵 생성
-        const dynamicMap = new Map(dynamicList.map((item) => [item.id, item]));
-
-        // 데이터 병합
-        const mergedData = sellerList.map((seller) => {
-            let dynamicData = dynamicMap.get(seller.id);
-
-            if (!dynamicData) {
-                dynamicData = {
-                    locked: 0,
-                    stock: 0,
-                    surplus: 0,
-                    is_online: 0,
-                };
-
-                console.log("Dynamic data not found for seller:", seller.id);
-            }
-
-            return {
-                ...seller,
-                ...dynamicData,
-            };
-        });
-
-        return mergedData;
-    } catch (error) {
-        console.error("PiggyCell 데이터 조회 실패:", error);
-        throw new Error(`가맹점 데이터 조회 실패: ${error.message}`);
-    }
+// 상단의 상수들을 객체로 구조화
+const CONFIG = {
+    API: {
+        BASE_URL: "https://app.piggycell.com",
+        ENDPOINTS: {
+            LIST: "/api/v1/seller/list",
+            DYNAMIC_LIST: "/api/v1/seller/dynamic-list",
+        },
+    },
+    NFT: {
+        IMAGE_URLS: [
+            "https://namulabs-public-assets.s3.ap-northeast-2.amazonaws.com/hub8.jpeg",
+            "https://namulabs-public-assets.s3.ap-northeast-2.amazonaws.com/hub16.jpeg",
+            "https://namulabs-public-assets.s3.ap-northeast-2.amazonaws.com/hub32.jpeg",
+            "https://namulabs-public-assets.s3.ap-northeast-2.amazonaws.com/hub64.jpeg",
+        ],
+        PAGE_SIZE: 100,
+    },
+    KEYS: {
+        PEM1: userPem,
+        PEM2: userPem2,
+    },
 };
 
 function App() {
@@ -139,7 +78,6 @@ function App() {
     const [forceMode, setForceMode] = useState(false);
     const [currentPage, setCurrentPage] = useState(0);
     const [hasMore, setHasMore] = useState(true);
-    const PAGE_SIZE = 100;
     const [isNFTListExpanded, setIsNFTListExpanded] = useState(false);
     const [isNFTMintExpanded, setIsNFTMintExpanded] = useState(false);
 
@@ -188,7 +126,7 @@ function App() {
 
     const loginWithPem1 = async () => {
         try {
-            const identity = Secp256k1KeyIdentity.fromPem(userPem);
+            const identity = Secp256k1KeyIdentity.fromPem(CONFIG.KEYS.PEM1);
             setIdentity(identity);
 
             const actor = createActor(canisterId, {
@@ -204,7 +142,7 @@ function App() {
 
     const loginWithPem2 = async () => {
         try {
-            const identity = Secp256k1KeyIdentity.fromPem(userPem2);
+            const identity = Secp256k1KeyIdentity.fromPem(CONFIG.KEYS.PEM2);
             setIdentity(identity);
 
             const actor = createActor(canisterId, {
@@ -291,14 +229,14 @@ function App() {
     // NFT 목록 로드 함수 수정
     const loadNFTs = async () => {
         try {
-            const startIndex = currentPage * PAGE_SIZE;
+            const startIndex = currentPage * CONFIG.NFT.PAGE_SIZE;
             const tokens = await nftActor.icrc7_tokens(
                 [startIndex],
-                [PAGE_SIZE],
+                [CONFIG.NFT.PAGE_SIZE],
             );
 
             // 다음 페이지 존재 여부 확인
-            setHasMore(tokens.length === PAGE_SIZE);
+            setHasMore(tokens.length === CONFIG.NFT.PAGE_SIZE);
 
             const metadata = await nftActor.icrc7_token_metadata(tokens);
             const owners = await nftActor.icrc7_owner_of(tokens);
@@ -334,7 +272,7 @@ function App() {
         }
     }, [nftActor, currentPage]);
 
-    // NFT 팅
+    // NFT 민팅
     const handleMint = async (e) => {
         e.preventDefault();
         setIsLoading(true);
@@ -509,7 +447,7 @@ function App() {
                 >
                     <svg
                         xmlns="http://www.w3.org/2000/svg"
-                        className="h-5 w-5 text-gray-500 hover:text-blue-500"
+                        className="w-5 h-5 text-gray-500 hover:text-blue-500"
                         fill="none"
                         viewBox="0 0 24 24"
                         stroke="currentColor"
@@ -612,36 +550,36 @@ function App() {
     };
 
     return (
-        <main className="min-h-screen bg-gray-100 p-8">
+        <main className="min-h-screen p-8 bg-gray-100">
             {isLoading && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                    <div className="bg-white p-6 rounded-lg flex flex-col items-center">
-                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mb-4"></div>
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+                    <div className="flex flex-col items-center p-6 bg-white rounded-lg">
+                        <div className="w-12 h-12 mb-4 border-b-2 border-blue-500 rounded-full animate-spin"></div>
                         <p className="text-lg font-semibold">처리중입니다...</p>
                     </div>
                 </div>
             )}
             <div className="max-w-4xl mx-auto">
-                <div className="flex justify-between items-center mb-8">
+                <div className="flex items-center justify-between mb-8">
                     <img src="/logo2.svg" alt="DFINITY logo" className="h-12" />
                     <div className="space-x-2">
                         {!identity ? (
                             <>
                                 <button
                                     onClick={login}
-                                    className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+                                    className="px-4 py-2 text-white bg-blue-500 rounded hover:bg-blue-600"
                                 >
                                     Internet Identity로 로그인
                                 </button>
                                 <button
                                     onClick={loginWithPem1}
-                                    className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
+                                    className="px-4 py-2 text-white bg-green-500 rounded hover:bg-green-600"
                                 >
                                     PEM1으로 로그인
                                 </button>
                                 <button
                                     onClick={loginWithPem2}
-                                    className="bg-purple-500 text-white px-4 py-2 rounded hover:bg-purple-600"
+                                    className="px-4 py-2 text-white bg-purple-500 rounded hover:bg-purple-600"
                                 >
                                     PEM2로 로그인
                                 </button>
@@ -682,7 +620,7 @@ function App() {
                                 </label>
                                 <button
                                     onClick={logout}
-                                    className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600"
+                                    className="px-4 py-2 text-white bg-red-500 rounded hover:bg-red-600"
                                 >
                                     로그아웃
                                 </button>
@@ -691,15 +629,15 @@ function App() {
                     </div>
                 </div>
 
-                <div className="bg-white rounded-lg shadow p-6 mb-6">
-                    <h2 className="text-2xl font-bold mb-4">NFT 컬렉션 정보</h2>
+                <div className="p-6 mb-6 bg-white rounded-lg shadow">
+                    <h2 className="mb-4 text-2xl font-bold">NFT 컬렉션 정보</h2>
                     <p>컬렉션 이름: {collectionName}</p>
                     <p>총 발행량: {totalSupply.toLocaleString()} NFTs</p>
                 </div>
 
-                <div className="bg-white rounded-lg shadow p-6 mb-6">
+                <div className="p-6 mb-6 bg-white rounded-lg shadow">
                     <div
-                        className="flex justify-between items-center cursor-pointer"
+                        className="flex items-center justify-between cursor-pointer"
                         onClick={() => setIsNFTListExpanded(!isNFTListExpanded)}
                     >
                         <h2 className="text-2xl font-bold">
@@ -726,11 +664,11 @@ function App() {
 
                     {isNFTListExpanded && (
                         <>
-                            <div className="mt-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            <div className="grid grid-cols-1 gap-4 mt-4 md:grid-cols-2 lg:grid-cols-3">
                                 {nftList.map((nft) => (
                                     <div
                                         key={nft.tokenId.toString()}
-                                        className="border rounded p-4"
+                                        className="p-4 border rounded"
                                     >
                                         {nft.metadata &&
                                             (() => {
@@ -741,7 +679,7 @@ function App() {
                                                     return (
                                                         <>
                                                             {metadata.description && (
-                                                                <p className="font-bold text-lg mb-2">
+                                                                <p className="mb-2 text-lg font-bold">
                                                                     {
                                                                         metadata.description
                                                                     }
@@ -753,7 +691,7 @@ function App() {
                                                                         metadata.image
                                                                     }
                                                                     alt="NFT"
-                                                                    className="w-full h-48 object-cover rounded my-2"
+                                                                    className="object-cover w-full h-48 my-2 rounded"
                                                                     onError={(
                                                                         e,
                                                                     ) => {
@@ -765,7 +703,7 @@ function App() {
                                                                 />
                                                             )}
                                                             {metadata.slot && (
-                                                                <p className="text-sm text-gray-600 mt-2">
+                                                                <p className="mt-2 text-sm text-gray-600">
                                                                     보유 슬롯:{" "}
                                                                     {
                                                                         metadata.slot
@@ -781,11 +719,11 @@ function App() {
                                                     );
                                                 }
                                             })()}
-                                        <p className="text-gray-600 mb-2">
+                                        <p className="mb-2 text-gray-600">
                                             소유자:{" "}
                                             {formatPrincipalId(nft.owner)}
                                         </p>
-                                        <p className="text-xs text-gray-400 mt-4">
+                                        <p className="mt-4 text-xs text-gray-400">
                                             Token ID: {nft.tokenId.toString()}
                                         </p>
                                         {identity &&
@@ -802,7 +740,7 @@ function App() {
                                                                 true,
                                                             );
                                                         }}
-                                                        className="mt-2 bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+                                                        className="px-4 py-2 mt-2 text-white bg-blue-500 rounded hover:bg-blue-600"
                                                     >
                                                         전송하기
                                                     </button>
@@ -817,7 +755,7 @@ function App() {
                                                                 true,
                                                             );
                                                         }}
-                                                        className="mt-2 bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
+                                                        className="px-4 py-2 mt-2 text-white bg-green-500 rounded hover:bg-green-600"
                                                     >
                                                         승인하기
                                                     </button>
@@ -840,7 +778,7 @@ function App() {
                                                             true,
                                                         );
                                                     }}
-                                                    className="mt-2 bg-purple-500 text-white px-4 py-2 rounded hover:bg-purple-600"
+                                                    className="px-4 py-2 mt-2 text-white bg-purple-500 rounded hover:bg-purple-600"
                                                 >
                                                     승인된 NFT 전송하기
                                                 </button>
@@ -850,7 +788,7 @@ function App() {
                             </div>
 
                             {/* 페이지네이션 컨트롤 수정 */}
-                            <div className="mt-6 flex flex-col items-center gap-4">
+                            <div className="flex flex-col items-center gap-4 mt-6">
                                 <div className="flex items-center gap-4">
                                     <button
                                         onClick={() =>
@@ -872,7 +810,7 @@ function App() {
                                                     onClick={() =>
                                                         handlePageChange(0)
                                                     }
-                                                    className="px-4 py-2 rounded bg-gray-200 hover:bg-gray-300"
+                                                    className="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300"
                                                 >
                                                     1
                                                 </button>
@@ -884,7 +822,8 @@ function App() {
                                         {getPageRange(
                                             currentPage,
                                             Math.ceil(
-                                                Number(totalSupply) / PAGE_SIZE,
+                                                Number(totalSupply) /
+                                                    CONFIG.NFT.PAGE_SIZE,
                                             ),
                                         ).map((pageNum) => (
                                             <button
@@ -903,7 +842,8 @@ function App() {
                                         ))}
                                         {currentPage <
                                             Math.ceil(
-                                                Number(totalSupply) / PAGE_SIZE,
+                                                Number(totalSupply) /
+                                                    CONFIG.NFT.PAGE_SIZE,
                                             ) -
                                                 3 && (
                                             <>
@@ -916,15 +856,18 @@ function App() {
                                                             Math.ceil(
                                                                 Number(
                                                                     totalSupply,
-                                                                ) / PAGE_SIZE,
+                                                                ) /
+                                                                    CONFIG.NFT
+                                                                        .PAGE_SIZE,
                                                             ) - 1,
                                                         )
                                                     }
-                                                    className="px-4 py-2 rounded bg-gray-200 hover:bg-gray-300"
+                                                    className="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300"
                                                 >
                                                     {Math.ceil(
                                                         Number(totalSupply) /
-                                                            PAGE_SIZE,
+                                                            CONFIG.NFT
+                                                                .PAGE_SIZE,
                                                     )}
                                                 </button>
                                             </>
@@ -946,7 +889,10 @@ function App() {
                                 </div>
                                 <div className="text-sm text-gray-600">
                                     총{" "}
-                                    {Math.ceil(Number(totalSupply) / PAGE_SIZE)}{" "}
+                                    {Math.ceil(
+                                        Number(totalSupply) /
+                                            CONFIG.NFT.PAGE_SIZE,
+                                    )}{" "}
                                     페이지 중 {currentPage + 1} 페이지
                                 </div>
                             </div>
@@ -956,9 +902,9 @@ function App() {
 
                 {/* Transfer Modal */}
                 {showTransferModal && (
-                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-                        <div className="bg-white p-6 rounded-lg w-96">
-                            <h3 className="text-xl font-bold mb-4">NFT 전송</h3>
+                    <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
+                        <div className="p-6 bg-white rounded-lg w-96">
+                            <h3 className="mb-4 text-xl font-bold">NFT 전송</h3>
                             <form
                                 onSubmit={handleTransfer}
                                 className="space-y-4"
@@ -986,13 +932,13 @@ function App() {
                                         onClick={() =>
                                             setShowTransferModal(false)
                                         }
-                                        className="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600"
+                                        className="px-4 py-2 text-white bg-gray-500 rounded hover:bg-gray-600"
                                     >
                                         취소
                                     </button>
                                     <button
                                         type="submit"
-                                        className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+                                        className="px-4 py-2 text-white bg-blue-500 rounded hover:bg-blue-600"
                                     >
                                         전송
                                     </button>
@@ -1003,12 +949,12 @@ function App() {
                 )}
 
                 {identity && (
-                    <div className="bg-white rounded-lg shadow p-6">
-                        <h2 className="text-2xl font-bold mb-4">NFT 민팅</h2>
+                    <div className="p-6 bg-white rounded-lg shadow">
+                        <h2 className="mb-4 text-2xl font-bold">NFT 민팅</h2>
                         <div className="space-y-4">
                             <button
                                 onClick={handlePiggyCellMint}
-                                className="w-full bg-indigo-500 text-white px-4 py-2 rounded hover:bg-indigo-600"
+                                className="w-full px-4 py-2 text-white bg-indigo-500 rounded hover:bg-indigo-600"
                             >
                                 PiggyCell 데이터로 NFT 민팅하기
                             </button>
@@ -1018,7 +964,7 @@ function App() {
                                     onClick={() =>
                                         setIsNFTMintExpanded(!isNFTMintExpanded)
                                     }
-                                    className="w-full flex justify-between items-center p-4 hover:bg-gray-50"
+                                    className="flex items-center justify-between w-full p-4 hover:bg-gray-50"
                                 >
                                     <span className="font-semibold">
                                         일반 NFT 민팅하기
@@ -1113,7 +1059,7 @@ function App() {
                                             </div>
                                             <button
                                                 type="submit"
-                                                className="w-full bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
+                                                className="w-full px-4 py-2 text-white bg-green-500 rounded hover:bg-green-600"
                                             >
                                                 NFT 민팅하기 (
                                                 {mintInput.quantity}개)
@@ -1128,9 +1074,9 @@ function App() {
 
                 {/* Approve Modal */}
                 {showApproveModal && (
-                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-                        <div className="bg-white p-6 rounded-lg w-96">
-                            <h3 className="text-xl font-bold mb-4">NFT 승인</h3>
+                    <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
+                        <div className="p-6 bg-white rounded-lg w-96">
+                            <h3 className="mb-4 text-xl font-bold">NFT 승인</h3>
                             <form
                                 onSubmit={handleApprove}
                                 className="space-y-4"
@@ -1158,13 +1104,13 @@ function App() {
                                         onClick={() =>
                                             setShowApproveModal(false)
                                         }
-                                        className="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600"
+                                        className="px-4 py-2 text-white bg-gray-500 rounded hover:bg-gray-600"
                                     >
                                         취소
                                     </button>
                                     <button
                                         type="submit"
-                                        className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
+                                        className="px-4 py-2 text-white bg-green-500 rounded hover:bg-green-600"
                                     >
                                         승인
                                     </button>
@@ -1176,9 +1122,9 @@ function App() {
 
                 {/* TransferFrom 모달 추가 */}
                 {showTransferFromModal && (
-                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-                        <div className="bg-white p-6 rounded-lg w-96">
-                            <h3 className="text-xl font-bold mb-4">
+                    <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
+                        <div className="p-6 bg-white rounded-lg w-96">
+                            <h3 className="mb-4 text-xl font-bold">
                                 승인된 NFT 전송
                             </h3>
                             <form
@@ -1215,13 +1161,13 @@ function App() {
                                         onClick={() =>
                                             setShowTransferFromModal(false)
                                         }
-                                        className="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600"
+                                        className="px-4 py-2 text-white bg-gray-500 rounded hover:bg-gray-600"
                                     >
                                         취소
                                     </button>
                                     <button
                                         type="submit"
-                                        className="bg-purple-500 text-white px-4 py-2 rounded hover:bg-purple-600"
+                                        className="px-4 py-2 text-white bg-purple-500 rounded hover:bg-purple-600"
                                     >
                                         전송
                                     </button>
