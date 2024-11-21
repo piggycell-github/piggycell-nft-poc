@@ -22,7 +22,6 @@ oUQDQgAE6BJAH55JTbnx9Uz8YAZaF1Af1qdgEb2Y8Vcso8rMRG5/56T4sJdFjmYE
 42xEhBi4HZlkP/3fd8hOLtw27qBOGw==
 -----END EC PRIVATE KEY-----`;
 
-// 상단의 상수들을 객체로 구조화
 const CONFIG = {
     API: {
         BASE_URL: "https://app.piggycell.com",
@@ -44,6 +43,11 @@ const CONFIG = {
         PEM1: userPem,
         PEM2: userPem2,
     },
+    MODALS: {
+        TRANSFER: "transfer",
+        APPROVE: "approve",
+        TRANSFER_FROM: "transferFrom",
+    },
 };
 
 function App() {
@@ -53,26 +57,29 @@ function App() {
     const [totalSupply, setTotalSupply] = useState(0);
     const [collectionName, setCollectionName] = useState("");
     const [nftList, setNftList] = useState([]);
-    const [mintInput, setMintInput] = useState({
-        metadata: "",
-        imageUrl: "",
-        quantity: 1,
+    const [modalState, setModalState] = useState({
+        activeModal: null,
+        data: {},
     });
-    const [transferInput, setTransferInput] = useState({
-        tokenId: "",
-        to: "",
-    });
-    const [showTransferModal, setShowTransferModal] = useState(false);
-    const [approveInput, setApproveInput] = useState({
-        tokenId: "",
-        spender: "",
-    });
-    const [showApproveModal, setShowApproveModal] = useState(false);
-    const [showTransferFromModal, setShowTransferFromModal] = useState(false);
-    const [transferFromInput, setTransferFromInput] = useState({
-        tokenId: "",
-        from: "",
-        to: "",
+    const [inputState, setInputState] = useState({
+        mint: {
+            metadata: "",
+            imageUrl: "",
+            quantity: 1,
+        },
+        transfer: {
+            tokenId: "",
+            to: "",
+        },
+        approve: {
+            tokenId: "",
+            spender: "",
+        },
+        transferFrom: {
+            tokenId: "",
+            from: "",
+            to: "",
+        },
     });
     const [isLoading, setIsLoading] = useState(false);
     const [forceMode, setForceMode] = useState(false);
@@ -195,10 +202,10 @@ function App() {
         try {
             const transferRequest = [
                 {
-                    token_id: BigInt(transferInput.tokenId),
+                    token_id: BigInt(inputState.transfer.tokenId),
                     from_subaccount: [],
                     to: {
-                        owner: Principal.fromText(transferInput.to),
+                        owner: Principal.fromText(inputState.transfer.to),
                         subaccount: [],
                     },
                     memo: [],
@@ -216,8 +223,7 @@ function App() {
             } else {
                 alert("전송에 실패했습니다: " + JSON.stringify(result.Err));
             }
-            setShowTransferModal(false);
-            setTransferInput({ tokenId: "", to: "" });
+            closeModal();
         } catch (e) {
             console.error("전송 실패:", e);
             alert("전송에 실패했습니다: " + e.message);
@@ -287,8 +293,8 @@ function App() {
                 ],
                 metadata: {
                     Text: JSON.stringify({
-                        description: mintInput.metadata,
-                        image: mintInput.imageUrl,
+                        description: inputState.mint.metadata,
+                        image: inputState.mint.imageUrl,
                     }),
                 },
                 memo: [],
@@ -298,7 +304,7 @@ function App() {
 
             // quantity만큼의 배열 생성
             const mintRequest = Array.from(
-                { length: Number(mintInput.quantity) },
+                { length: Number(inputState.mint.quantity) },
                 (_, i) => getMintRequestItem(i),
             );
 
@@ -310,7 +316,14 @@ function App() {
 
             if ("Ok" in result) {
                 alert("NFT가 성공적으로 민팅되었습니다.");
-                setMintInput({ metadata: "", imageUrl: "", quantity: 1 });
+                setInputState({
+                    ...inputState,
+                    mint: {
+                        metadata: "",
+                        imageUrl: "",
+                        quantity: 1,
+                    },
+                });
             } else {
                 alert("민팅에 실패했습니다.");
             }
@@ -329,10 +342,12 @@ function App() {
         try {
             const approveRequest = [
                 {
-                    token_id: BigInt(approveInput.tokenId),
+                    token_id: BigInt(inputState.approve.tokenId),
                     approval_info: {
                         spender: {
-                            owner: Principal.fromText(approveInput.spender),
+                            owner: Principal.fromText(
+                                inputState.approve.spender,
+                            ),
                             subaccount: [],
                         },
                         from_subaccount: [],
@@ -349,8 +364,14 @@ function App() {
 
             if ("Ok" in result) {
                 alert("NFT가 성공적으로 승인되었습니다.");
-                setShowApproveModal(false);
-                setApproveInput({ tokenId: "", spender: "" });
+                closeModal();
+                setInputState({
+                    ...inputState,
+                    approve: {
+                        tokenId: "",
+                        spender: "",
+                    },
+                });
             } else {
                 alert("승인에 실패했습니다.");
             }
@@ -390,7 +411,7 @@ function App() {
 
             if ("Ok" in result) {
                 alert("승인된 NFT가 성공적으로 전송되었습니다.");
-                setShowTransferFromModal(false);
+                closeModal();
             } else {
                 alert("전송에 실패했습니다.");
             }
@@ -547,6 +568,147 @@ function App() {
         } finally {
             setIsLoading(false);
         }
+    };
+
+    // 모달 헬퍼 함수들
+    const openModal = (modalType, data = {}) => {
+        setModalState({
+            activeModal: modalType,
+            data,
+        });
+    };
+
+    const closeModal = () => {
+        setModalState({
+            activeModal: null,
+            data: {},
+        });
+    };
+
+    // 입력값 업데이트 헬퍼 함수
+    const updateInput = (type, field, value) => {
+        setInputState((prev) => ({
+            ...prev,
+            [type]: {
+                ...prev[type],
+                [field]: value,
+            },
+        }));
+    };
+
+    // 모달 렌더링 함수
+    const renderModal = () => {
+        const modalProps = {
+            [CONFIG.MODALS.TRANSFER]: {
+                title: "NFT 전송",
+                onSubmit: handleTransfer,
+                content: (
+                    <div>
+                        <label className="block mb-2">
+                            받는 사람 Principal ID:
+                        </label>
+                        <input
+                            type="text"
+                            value={inputState.transfer.to}
+                            onChange={(e) =>
+                                updateInput("transfer", "to", e.target.value)
+                            }
+                            className="w-full p-2 border rounded"
+                            required
+                        />
+                    </div>
+                ),
+            },
+            [CONFIG.MODALS.APPROVE]: {
+                title: "NFT 승인",
+                onSubmit: handleApprove,
+                content: (
+                    <div>
+                        <label className="block mb-2">
+                            승인받을 Principal ID:
+                        </label>
+                        <input
+                            type="text"
+                            value={inputState.approve.spender}
+                            onChange={(e) =>
+                                updateInput(
+                                    "approve",
+                                    "spender",
+                                    e.target.value,
+                                )
+                            }
+                            className="w-full p-2 border rounded"
+                            required
+                        />
+                    </div>
+                ),
+            },
+            [CONFIG.MODALS.TRANSFER_FROM]: {
+                title: "승인된 NFT 전송",
+                onSubmit: (e) => {
+                    e.preventDefault();
+                    handleTransferFrom(
+                        inputState.transferFrom.tokenId,
+                        inputState.transferFrom.from,
+                        inputState.transferFrom.to,
+                    );
+                },
+                content: (
+                    <div>
+                        <label className="block mb-2">
+                            받는 사람 Principal ID:
+                        </label>
+                        <input
+                            type="text"
+                            value={inputState.transferFrom.to}
+                            onChange={(e) =>
+                                updateInput(
+                                    "transferFrom",
+                                    "to",
+                                    e.target.value,
+                                )
+                            }
+                            className="w-full p-2 border rounded"
+                            required
+                        />
+                    </div>
+                ),
+            },
+        };
+
+        const activeModalConfig = modalProps[modalState.activeModal];
+        if (!activeModalConfig) return null;
+
+        return (
+            <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
+                <div className="p-6 bg-white rounded-lg w-96">
+                    <h3 className="mb-4 text-xl font-bold">
+                        {activeModalConfig.title}
+                    </h3>
+                    <form
+                        onSubmit={activeModalConfig.onSubmit}
+                        className="space-y-4"
+                    >
+                        {activeModalConfig.content}
+                        <div className="flex justify-end space-x-2">
+                            <button
+                                type="button"
+                                onClick={closeModal}
+                                className="px-4 py-2 text-white bg-gray-500 rounded hover:bg-gray-600"
+                            >
+                                취소
+                            </button>
+                            <button
+                                type="submit"
+                                className="px-4 py-2 text-white bg-blue-500 rounded hover:bg-blue-600"
+                            >
+                                확인
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        );
     };
 
     return (
@@ -731,13 +893,17 @@ function App() {
                                                 <div className="flex gap-2">
                                                     <button
                                                         onClick={() => {
-                                                            setTransferInput({
-                                                                ...transferInput,
-                                                                tokenId:
-                                                                    nft.tokenId.toString(),
+                                                            setInputState({
+                                                                ...inputState,
+                                                                transfer: {
+                                                                    ...inputState.transfer,
+                                                                    tokenId:
+                                                                        nft.tokenId.toString(),
+                                                                },
                                                             });
-                                                            setShowTransferModal(
-                                                                true,
+                                                            openModal(
+                                                                CONFIG.MODALS
+                                                                    .TRANSFER,
                                                             );
                                                         }}
                                                         className="px-4 py-2 mt-2 text-white bg-blue-500 rounded hover:bg-blue-600"
@@ -746,13 +912,17 @@ function App() {
                                                     </button>
                                                     <button
                                                         onClick={() => {
-                                                            setApproveInput({
-                                                                ...approveInput,
-                                                                tokenId:
-                                                                    nft.tokenId.toString(),
+                                                            setInputState({
+                                                                ...inputState,
+                                                                approve: {
+                                                                    ...inputState.approve,
+                                                                    tokenId:
+                                                                        nft.tokenId.toString(),
+                                                                },
                                                             });
-                                                            setShowApproveModal(
-                                                                true,
+                                                            openModal(
+                                                                CONFIG.MODALS
+                                                                    .APPROVE,
                                                             );
                                                         }}
                                                         className="px-4 py-2 mt-2 text-white bg-green-500 rounded hover:bg-green-600"
@@ -766,16 +936,21 @@ function App() {
                                             (forceMode || !nft.isOwner) && (
                                                 <button
                                                     onClick={() => {
-                                                        setTransferFromInput({
-                                                            tokenId:
-                                                                nft.tokenId.toString(),
-                                                            from: nft.owner,
-                                                            to: identity
-                                                                .getPrincipal()
-                                                                .toText(),
+                                                        setInputState({
+                                                            ...inputState,
+                                                            transferFrom: {
+                                                                ...inputState.transferFrom,
+                                                                tokenId:
+                                                                    nft.tokenId.toString(),
+                                                                from: nft.owner,
+                                                                to: identity
+                                                                    .getPrincipal()
+                                                                    .toText(),
+                                                            },
                                                         });
-                                                        setShowTransferFromModal(
-                                                            true,
+                                                        openModal(
+                                                            CONFIG.MODALS
+                                                                .TRANSFER_FROM,
                                                         );
                                                     }}
                                                     className="px-4 py-2 mt-2 text-white bg-purple-500 rounded hover:bg-purple-600"
@@ -900,53 +1075,7 @@ function App() {
                     )}
                 </div>
 
-                {/* Transfer Modal */}
-                {showTransferModal && (
-                    <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
-                        <div className="p-6 bg-white rounded-lg w-96">
-                            <h3 className="mb-4 text-xl font-bold">NFT 전송</h3>
-                            <form
-                                onSubmit={handleTransfer}
-                                className="space-y-4"
-                            >
-                                <div>
-                                    <label className="block mb-2">
-                                        받는 사람 Principal ID:
-                                    </label>
-                                    <input
-                                        type="text"
-                                        value={transferInput.to}
-                                        onChange={(e) =>
-                                            setTransferInput({
-                                                ...transferInput,
-                                                to: e.target.value,
-                                            })
-                                        }
-                                        className="w-full p-2 border rounded"
-                                        required
-                                    />
-                                </div>
-                                <div className="flex justify-end space-x-2">
-                                    <button
-                                        type="button"
-                                        onClick={() =>
-                                            setShowTransferModal(false)
-                                        }
-                                        className="px-4 py-2 text-white bg-gray-500 rounded hover:bg-gray-600"
-                                    >
-                                        취소
-                                    </button>
-                                    <button
-                                        type="submit"
-                                        className="px-4 py-2 text-white bg-blue-500 rounded hover:bg-blue-600"
-                                    >
-                                        전송
-                                    </button>
-                                </div>
-                            </form>
-                        </div>
-                    </div>
-                )}
+                {renderModal()}
 
                 {identity && (
                     <div className="p-6 bg-white rounded-lg shadow">
@@ -1000,13 +1129,15 @@ function App() {
                                                 </label>
                                                 <input
                                                     type="text"
-                                                    value={mintInput.metadata}
+                                                    value={
+                                                        inputState.mint.metadata
+                                                    }
                                                     onChange={(e) =>
-                                                        setMintInput({
-                                                            ...mintInput,
-                                                            metadata:
-                                                                e.target.value,
-                                                        })
+                                                        updateInput(
+                                                            "mint",
+                                                            "metadata",
+                                                            e.target.value,
+                                                        )
                                                     }
                                                     className="w-full p-2 border rounded"
                                                     placeholder="NFT에 대한 설명을 입력하세요"
@@ -1018,13 +1149,15 @@ function App() {
                                                 </label>
                                                 <input
                                                     type="url"
-                                                    value={mintInput.imageUrl}
+                                                    value={
+                                                        inputState.mint.imageUrl
+                                                    }
                                                     onChange={(e) =>
-                                                        setMintInput({
-                                                            ...mintInput,
-                                                            imageUrl:
-                                                                e.target.value,
-                                                        })
+                                                        updateInput(
+                                                            "mint",
+                                                            "imageUrl",
+                                                            e.target.value,
+                                                        )
                                                     }
                                                     className="w-full p-2 border rounded"
                                                     placeholder="이미지 URL을 입력하세요"
@@ -1038,11 +1171,14 @@ function App() {
                                                     type="number"
                                                     min="1"
                                                     max="10000"
-                                                    value={mintInput.quantity}
+                                                    value={
+                                                        inputState.mint.quantity
+                                                    }
                                                     onChange={(e) =>
-                                                        setMintInput({
-                                                            ...mintInput,
-                                                            quantity: Math.min(
+                                                        updateInput(
+                                                            "mint",
+                                                            "quantity",
+                                                            Math.min(
                                                                 10000,
                                                                 Math.max(
                                                                     1,
@@ -1052,7 +1188,7 @@ function App() {
                                                                     ) || 1,
                                                                 ),
                                                             ),
-                                                        })
+                                                        )
                                                     }
                                                     className="w-full p-2 border rounded"
                                                 />
@@ -1062,117 +1198,12 @@ function App() {
                                                 className="w-full px-4 py-2 text-white bg-green-500 rounded hover:bg-green-600"
                                             >
                                                 NFT 민팅하기 (
-                                                {mintInput.quantity}개)
+                                                {inputState.mint.quantity}개)
                                             </button>
                                         </form>
                                     </div>
                                 )}
                             </div>
-                        </div>
-                    </div>
-                )}
-
-                {/* Approve Modal */}
-                {showApproveModal && (
-                    <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
-                        <div className="p-6 bg-white rounded-lg w-96">
-                            <h3 className="mb-4 text-xl font-bold">NFT 승인</h3>
-                            <form
-                                onSubmit={handleApprove}
-                                className="space-y-4"
-                            >
-                                <div>
-                                    <label className="block mb-2">
-                                        승인받을 Principal ID:
-                                    </label>
-                                    <input
-                                        type="text"
-                                        value={approveInput.spender}
-                                        onChange={(e) =>
-                                            setApproveInput({
-                                                ...approveInput,
-                                                spender: e.target.value,
-                                            })
-                                        }
-                                        className="w-full p-2 border rounded"
-                                        required
-                                    />
-                                </div>
-                                <div className="flex justify-end space-x-2">
-                                    <button
-                                        type="button"
-                                        onClick={() =>
-                                            setShowApproveModal(false)
-                                        }
-                                        className="px-4 py-2 text-white bg-gray-500 rounded hover:bg-gray-600"
-                                    >
-                                        취소
-                                    </button>
-                                    <button
-                                        type="submit"
-                                        className="px-4 py-2 text-white bg-green-500 rounded hover:bg-green-600"
-                                    >
-                                        승인
-                                    </button>
-                                </div>
-                            </form>
-                        </div>
-                    </div>
-                )}
-
-                {/* TransferFrom 모달 추가 */}
-                {showTransferFromModal && (
-                    <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
-                        <div className="p-6 bg-white rounded-lg w-96">
-                            <h3 className="mb-4 text-xl font-bold">
-                                승인된 NFT 전송
-                            </h3>
-                            <form
-                                onSubmit={(e) => {
-                                    e.preventDefault();
-                                    handleTransferFrom(
-                                        transferFromInput.tokenId,
-                                        transferFromInput.from,
-                                        transferFromInput.to,
-                                    );
-                                }}
-                                className="space-y-4"
-                            >
-                                <div>
-                                    <label className="block mb-2">
-                                        받는 사람 Principal ID:
-                                    </label>
-                                    <input
-                                        type="text"
-                                        value={transferFromInput.to}
-                                        onChange={(e) =>
-                                            setTransferFromInput({
-                                                ...transferFromInput,
-                                                to: e.target.value,
-                                            })
-                                        }
-                                        className="w-full p-2 border rounded"
-                                        required
-                                    />
-                                </div>
-                                <div className="flex justify-end space-x-2">
-                                    <button
-                                        type="button"
-                                        onClick={() =>
-                                            setShowTransferFromModal(false)
-                                        }
-                                        className="px-4 py-2 text-white bg-gray-500 rounded hover:bg-gray-600"
-                                    >
-                                        취소
-                                    </button>
-                                    <button
-                                        type="submit"
-                                        className="px-4 py-2 text-white bg-purple-500 rounded hover:bg-purple-600"
-                                    >
-                                        전송
-                                    </button>
-                                </div>
-                            </form>
                         </div>
                     </div>
                 )}
