@@ -452,9 +452,9 @@ function App() {
         const copyToClipboard = async () => {
             try {
                 await navigator.clipboard.writeText(principal.toString());
-                alert("Principal ID가 클립보드에 복사되었습니다.");
+                alert("Principal ID has been copied to clipboard.");
             } catch (err) {
-                console.error("클립보드 복사 실패:", err);
+                console.error("Failed to copy to clipboard:", err);
             }
         };
 
@@ -464,7 +464,7 @@ function App() {
                 <button
                     onClick={copyToClipboard}
                     className="p-1.5 rounded-md hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    title="클릭하여 복사하기"
+                    title="Click to copy"
                 >
                     <svg
                         xmlns="http://www.w3.org/2000/svg"
@@ -600,12 +600,12 @@ function App() {
     const renderModal = () => {
         const modalProps = {
             [CONFIG.MODALS.TRANSFER]: {
-                title: "NFT 전송",
+                title: "Transfer NFT",
                 onSubmit: handleTransfer,
                 content: (
                     <div>
                         <label className="block mb-2">
-                            받는 사람 Principal ID:
+                            Recipient Principal ID:
                         </label>
                         <input
                             type="text"
@@ -620,12 +620,12 @@ function App() {
                 ),
             },
             [CONFIG.MODALS.APPROVE]: {
-                title: "NFT 승인",
+                title: "Approve NFT",
                 onSubmit: handleApprove,
                 content: (
                     <div>
                         <label className="block mb-2">
-                            승인받을 Principal ID:
+                            Principal ID to approve:
                         </label>
                         <input
                             type="text"
@@ -644,7 +644,7 @@ function App() {
                 ),
             },
             [CONFIG.MODALS.TRANSFER_FROM]: {
-                title: "승인된 NFT 전송",
+                title: "Transfer Approved NFT",
                 onSubmit: (e) => {
                     e.preventDefault();
                     handleTransferFrom(
@@ -656,7 +656,7 @@ function App() {
                 content: (
                     <div>
                         <label className="block mb-2">
-                            받는 사람 Principal ID:
+                            Recipient Principal ID:
                         </label>
                         <input
                             type="text"
@@ -696,13 +696,13 @@ function App() {
                                 onClick={closeModal}
                                 className="px-4 py-2 text-white bg-gray-500 rounded hover:bg-gray-600"
                             >
-                                취소
+                                Cancel
                             </button>
                             <button
                                 type="submit"
                                 className="px-4 py-2 text-white bg-blue-500 rounded hover:bg-blue-600"
                             >
-                                확인
+                                Confirm
                             </button>
                         </div>
                     </form>
@@ -717,7 +717,7 @@ function App() {
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
                     <div className="flex flex-col items-center p-6 bg-white rounded-lg">
                         <div className="w-12 h-12 mb-4 border-b-2 border-blue-500 rounded-full animate-spin"></div>
-                        <p className="text-lg font-semibold">처리중입니다...</p>
+                        <p className="text-lg font-semibold">Processing...</p>
                     </div>
                 </div>
             )}
@@ -731,19 +731,19 @@ function App() {
                                     onClick={login}
                                     className="px-4 py-2 text-white bg-blue-500 rounded hover:bg-blue-600"
                                 >
-                                    Internet Identity로 로그인
+                                    Login with Internet Identity
                                 </button>
                                 <button
                                     onClick={loginWithPem1}
                                     className="px-4 py-2 text-white bg-green-500 rounded hover:bg-green-600"
                                 >
-                                    PEM1으로 로그인
+                                    Login with PEM1
                                 </button>
                                 <button
                                     onClick={loginWithPem2}
                                     className="px-4 py-2 text-white bg-purple-500 rounded hover:bg-purple-600"
                                 >
-                                    PEM2로 로그인
+                                    Login with PEM2
                                 </button>
                             </>
                         ) : (
@@ -784,7 +784,7 @@ function App() {
                                     onClick={logout}
                                     className="px-4 py-2 text-white bg-red-500 rounded hover:bg-red-600"
                                 >
-                                    로그아웃
+                                    Logout
                                 </button>
                             </div>
                         )}
@@ -792,9 +792,11 @@ function App() {
                 </div>
 
                 <div className="p-6 mb-6 bg-white rounded-lg shadow">
-                    <h2 className="mb-4 text-2xl font-bold">NFT 컬렉션 정보</h2>
-                    <p>컬렉션 이름: {collectionName}</p>
-                    <p>총 발행량: {totalSupply.toLocaleString()} NFTs</p>
+                    <h2 className="mb-4 text-2xl font-bold">
+                        NFT Collection Info
+                    </h2>
+                    <p>Collection Name: {collectionName}</p>
+                    <p>Total Supply: {totalSupply.toLocaleString()} NFTs</p>
                 </div>
 
                 <div className="p-6 mb-6 bg-white rounded-lg shadow">
@@ -803,7 +805,7 @@ function App() {
                         onClick={() => setIsNFTListExpanded(!isNFTListExpanded)}
                     >
                         <h2 className="text-2xl font-bold">
-                            NFT 목록 (
+                            NFT List (
                             {totalSupply
                                 .toString()
                                 .replace(/\B(?=(\d{3})+(?!\d))/g, ",")}
@@ -866,11 +868,10 @@ function App() {
                                                             )}
                                                             {metadata.slot && (
                                                                 <p className="mt-2 text-sm text-gray-600">
-                                                                    보유 슬롯:{" "}
+                                                                    Slots:{" "}
                                                                     {
                                                                         metadata.slot
                                                                     }
-                                                                    개
                                                                 </p>
                                                             )}
                                                         </>
@@ -882,7 +883,7 @@ function App() {
                                                 }
                                             })()}
                                         <p className="mb-2 text-gray-600">
-                                            소유자:{" "}
+                                            Owner:{" "}
                                             {formatPrincipalId(nft.owner)}
                                         </p>
                                         <p className="mt-4 text-xs text-gray-400">
@@ -908,7 +909,7 @@ function App() {
                                                         }}
                                                         className="px-4 py-2 mt-2 text-white bg-blue-500 rounded hover:bg-blue-600"
                                                     >
-                                                        전송하기
+                                                        Transfer
                                                     </button>
                                                     <button
                                                         onClick={() => {
@@ -927,7 +928,7 @@ function App() {
                                                         }}
                                                         className="px-4 py-2 mt-2 text-white bg-green-500 rounded hover:bg-green-600"
                                                     >
-                                                        승인하기
+                                                        Approve
                                                     </button>
                                                 </div>
                                             )}
@@ -955,14 +956,14 @@ function App() {
                                                     }}
                                                     className="px-4 py-2 mt-2 text-white bg-purple-500 rounded hover:bg-purple-600"
                                                 >
-                                                    승인된 NFT 전송하기
+                                                    Transfer Approved NFT
                                                 </button>
                                             )}
                                     </div>
                                 ))}
                             </div>
 
-                            {/* 페이지네이션 컨트롤 수정 */}
+                            {/* Pagination Controls */}
                             <div className="flex flex-col items-center gap-4 mt-6">
                                 <div className="flex items-center gap-4">
                                     <button
@@ -976,7 +977,7 @@ function App() {
                                                 : "bg-blue-500 hover:bg-blue-600 text-white"
                                         }`}
                                     >
-                                        이전
+                                        Previous
                                     </button>
                                     <div className="flex items-center gap-2">
                                         {currentPage > 2 && (
@@ -1059,16 +1060,15 @@ function App() {
                                                 : "bg-blue-500 hover:bg-blue-600 text-white"
                                         }`}
                                     >
-                                        다음
+                                        Next
                                     </button>
                                 </div>
                                 <div className="text-sm text-gray-600">
-                                    총{" "}
+                                    Page {currentPage + 1} of{" "}
                                     {Math.ceil(
                                         Number(totalSupply) /
                                             CONFIG.NFT.PAGE_SIZE,
-                                    )}{" "}
-                                    페이지 중 {currentPage + 1} 페이지
+                                    )}
                                 </div>
                             </div>
                         </>
@@ -1079,13 +1079,13 @@ function App() {
 
                 {identity && (
                     <div className="p-6 bg-white rounded-lg shadow">
-                        <h2 className="mb-4 text-2xl font-bold">NFT 민팅</h2>
+                        <h2 className="mb-4 text-2xl font-bold">Mint NFT</h2>
                         <div className="space-y-4">
                             <button
                                 onClick={handlePiggyCellMint}
                                 className="w-full px-4 py-2 text-white bg-indigo-500 rounded hover:bg-indigo-600"
                             >
-                                PiggyCell 데이터로 NFT 민팅하기
+                                Mint NFT with PiggyCell Data
                             </button>
 
                             <div className="border rounded-lg">
@@ -1096,7 +1096,7 @@ function App() {
                                     className="flex items-center justify-between w-full p-4 hover:bg-gray-50"
                                 >
                                     <span className="font-semibold">
-                                        일반 NFT 민팅하기
+                                        Mint General NFT
                                     </span>
                                     <svg
                                         className={`w-6 h-6 transform transition-transform ${
@@ -1125,7 +1125,7 @@ function App() {
                                         >
                                             <div>
                                                 <label className="block mb-2">
-                                                    설명:
+                                                    Description:
                                                 </label>
                                                 <input
                                                     type="text"
@@ -1140,12 +1140,12 @@ function App() {
                                                         )
                                                     }
                                                     className="w-full p-2 border rounded"
-                                                    placeholder="NFT에 대한 설명을 입력하세요"
+                                                    placeholder="Enter a description for the NFT"
                                                 />
                                             </div>
                                             <div>
                                                 <label className="block mb-2">
-                                                    이미지 URL:
+                                                    Image URL:
                                                 </label>
                                                 <input
                                                     type="url"
@@ -1160,12 +1160,12 @@ function App() {
                                                         )
                                                     }
                                                     className="w-full p-2 border rounded"
-                                                    placeholder="이미지 URL을 입력하세요"
+                                                    placeholder="Enter the image URL"
                                                 />
                                             </div>
                                             <div>
                                                 <label className="block mb-2">
-                                                    민팅 수량:
+                                                    Quantity:
                                                 </label>
                                                 <input
                                                     type="number"
@@ -1197,8 +1197,9 @@ function App() {
                                                 type="submit"
                                                 className="w-full px-4 py-2 text-white bg-green-500 rounded hover:bg-green-600"
                                             >
-                                                NFT 민팅하기 (
-                                                {inputState.mint.quantity}개)
+                                                Mint NFT (
+                                                {inputState.mint.quantity}{" "}
+                                                items)
                                             </button>
                                         </form>
                                     </div>
