@@ -143,7 +143,7 @@ function App() {
             });
             setNftActor(actor);
         } catch (e) {
-            console.error("PEM1 로그인 실패:", e);
+            console.error("Failed to login with PEM1:", e);
         }
     };
 
@@ -159,7 +159,7 @@ function App() {
             });
             setNftActor(actor);
         } catch (e) {
-            console.error("PEM2 로그인 실패:", e);
+            console.error("Failed to login with PEM2:", e);
         }
     };
 
@@ -176,7 +176,7 @@ function App() {
             setCollectionName(name);
             setTotalSupply(supply);
         } catch (e) {
-            console.error("컬렉션 정보 로드 실패:", e);
+            console.error("Failed to load collection info:", e);
         }
     };
 
@@ -190,7 +190,7 @@ function App() {
                 identity.getPrincipal().toText()
             );
         } catch (e) {
-            console.error("소유자 확인 실패:", e);
+            console.error("Failed to verify owner:", e);
             return false;
         }
     };
@@ -219,14 +219,14 @@ function App() {
             await loadNFTs();
 
             if ("Ok" in result) {
-                alert("NFT가 성공적으로 전송되었습니다.");
+                alert("NFT has been transferred successfully.");
             } else {
-                alert("전송에 실패했습니다: " + JSON.stringify(result.Err));
+                alert("Transfer failed: " + JSON.stringify(result.Err));
             }
             closeModal();
         } catch (e) {
-            console.error("전송 실패:", e);
-            alert("전송에 실패했습니다: " + e.message);
+            console.error("Transfer failed:", e);
+            alert("Transfer failed: " + e.message);
         } finally {
             setIsLoading(false);
         }
@@ -262,7 +262,7 @@ function App() {
             );
             setNftList(nftsWithDetails);
         } catch (e) {
-            console.error("NFT 목록 로드 실패:", e);
+            console.error("Failed to load NFT list:", e);
         }
     };
 
@@ -315,7 +315,7 @@ function App() {
             await loadNFTs();
 
             if ("Ok" in result) {
-                alert("NFT가 성공적으로 민팅되었습니다.");
+                alert("NFT has been minted successfully.");
                 setInputState({
                     ...inputState,
                     mint: {
@@ -325,11 +325,11 @@ function App() {
                     },
                 });
             } else {
-                alert("민팅에 실패했습니다.");
+                alert("Minting failed.");
             }
         } catch (e) {
-            console.error("민팅 실패:", e);
-            alert("민팅에 실패했습니다: " + e.message);
+            console.error("Minting failed:", e);
+            alert("Minting failed: " + e.message);
         } finally {
             setIsLoading(false);
         }
@@ -363,7 +363,7 @@ function App() {
                 .then((res) => res[0][0]);
 
             if ("Ok" in result) {
-                alert("NFT가 성공적으로 승인되었습니다.");
+                alert("NFT has been approved successfully.");
                 closeModal();
                 setInputState({
                     ...inputState,
@@ -373,11 +373,11 @@ function App() {
                     },
                 });
             } else {
-                alert("승인에 실패했습니다.");
+                alert("Approval failed.");
             }
         } catch (e) {
-            console.error("승인 실패:", e);
-            alert("승인에 실패했습니다: " + e.message);
+            console.error("Approval failed:", e);
+            alert("Approval failed: " + e.message);
         } finally {
             setIsLoading(false);
         }
@@ -410,14 +410,14 @@ function App() {
             await loadNFTs();
 
             if ("Ok" in result) {
-                alert("승인된 NFT가 성공적으로 전송되었습니다.");
+                alert("Approved NFT has been transferred successfully.");
                 closeModal();
             } else {
-                alert("전송에 실패했습니다.");
+                alert("Transfer failed.");
             }
         } catch (e) {
-            console.error("TransferFrom 실패:", e);
-            alert("송에 실패했습니다: " + e.message);
+            console.error("TransferFrom failed:", e);
+            alert("Transfer failed: " + e.message);
         } finally {
             setIsLoading(false);
         }
@@ -442,7 +442,7 @@ function App() {
                 await nftActor.icrc37_is_approved(isApprovedRequest);
             return approvalResult[0];
         } catch (e) {
-            console.error("승인 확인 실패:", e);
+            console.error("Failed to check approval:", e);
             return false;
         }
     };
@@ -557,14 +557,14 @@ function App() {
 
             if ("Ok" in result) {
                 alert(
-                    `${piggyCellData.length}개의 NFT가 성공적으로 민팅되었습니다.`,
+                    `${piggyCellData.length} NFTs have been minted successfully.`,
                 );
             } else {
-                alert("민팅에 실패했습니다.");
+                alert("Minting failed.");
             }
         } catch (e) {
-            console.error("PiggyCell 민팅 실패:", e);
-            alert("민팅에 실패했습니다: " + e.message);
+            console.error("PiggyCell minting failed:", e);
+            alert("Minting failed: " + e.message);
         } finally {
             setIsLoading(false);
         }
