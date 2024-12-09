@@ -88,7 +88,7 @@ function App() {
     const [isNFTListExpanded, setIsNFTListExpanded] = useState(false);
     const [isNFTMintExpanded, setIsNFTMintExpanded] = useState(false);
 
-    // 인증 초기화
+    // Initialize authentication
     useEffect(() => {
         initAuth();
     }, []);
@@ -107,7 +107,7 @@ function App() {
         const identity = client.getIdentity();
         setIdentity(identity);
 
-        // actor 업데이트
+        // Update actor
         const actor = createActor(canisterId, {
             agentOptions: {
                 identity,
@@ -163,7 +163,7 @@ function App() {
         }
     };
 
-    // NFT 컬렉션 정보 로드
+    // Load NFT collection information
     useEffect(() => {
         loadCollectionInfo();
         loadNFTs();
@@ -180,7 +180,7 @@ function App() {
         }
     };
 
-    // NFT 소유자 확인 함수
+    // Check NFT owner function
     const isOwner = async (tokenId) => {
         if (!identity) return false;
         try {
@@ -195,7 +195,7 @@ function App() {
         }
     };
 
-    // NFT 전송 함수
+    // NFT transfer function
     const handleTransfer = async (e) => {
         e.preventDefault();
         setIsLoading(true);
@@ -232,7 +232,7 @@ function App() {
         }
     };
 
-    // NFT 목록 로드 함수 수정
+    // Modified NFT list loading function
     const loadNFTs = async () => {
         try {
             const startIndex = currentPage * CONFIG.NFT.PAGE_SIZE;
@@ -241,7 +241,7 @@ function App() {
                 [CONFIG.NFT.PAGE_SIZE],
             );
 
-            // 다음 페이지 존재 여부 확인
+            // Check if there is a next page
             setHasMore(tokens.length === CONFIG.NFT.PAGE_SIZE);
 
             const metadata = await nftActor.icrc7_token_metadata(tokens);
@@ -266,12 +266,12 @@ function App() {
         }
     };
 
-    // 페이지 변경 핸들러 추가
+    // Add page change handler
     const handlePageChange = (newPage) => {
         setCurrentPage(newPage);
     };
 
-    // useEffect 수정 - currentPage가 변경될 때마다 loadNFTs 호출
+    // Modify useEffect - call loadNFTs whenever currentPage changes
     useEffect(() => {
         if (nftActor) {
             loadNFTs();
@@ -302,7 +302,7 @@ function App() {
                 created_at_time: [],
             });
 
-            // quantity만큼의 배열 생성
+            // Create array with length of quantity
             const mintRequest = Array.from(
                 { length: Number(inputState.mint.quantity) },
                 (_, i) => getMintRequestItem(i),
@@ -335,7 +335,7 @@ function App() {
         }
     };
 
-    // approve 함수 추가
+    // Add approve function
     const handleApprove = async (e) => {
         e.preventDefault();
         setIsLoading(true);
@@ -383,7 +383,7 @@ function App() {
         }
     };
 
-    // transferFrom 함수 추가
+    // Add transferFrom function
     const handleTransferFrom = async (tokenId, from, to) => {
         setIsLoading(true);
         try {
@@ -423,7 +423,7 @@ function App() {
         }
     };
 
-    // NFT 승인 여부 확인 함수 추가
+    // Add function to check NFT approval status
     const checkApproval = async (tokenId) => {
         if (!identity) return false;
 
@@ -447,7 +447,7 @@ function App() {
         }
     };
 
-    // Principal ID 컴포넌트 추가
+    // Add Principal ID component
     const PrincipalDisplay = ({ principal }) => {
         const copyToClipboard = async () => {
             try {
@@ -485,7 +485,7 @@ function App() {
         );
     };
 
-    // Principal ID를 포맷팅하는 함수 추가
+    // Add function to format Principal ID
     const formatPrincipalId = (principal) => {
         if (!principal) return "";
         const text = principal.toString();
@@ -493,37 +493,37 @@ function App() {
         return `${text.slice(0, 8)}...${text.slice(-8)}`;
     };
 
-    // 페이지네이션 헬퍼 함수 추가
+    // Add pagination helper function
     const getPageRange = (currentPage, totalPages, maxButtons = 5) => {
-        // 전체 페이지가 최대 버튼 수보다 작은 경우
+        // If total pages are less than max buttons
         if (totalPages <= maxButtons) {
             return Array.from({ length: totalPages }, (_, i) => i);
         }
 
-        // 현재 페이지를 중앙에 두고 양쪽에 표시할 페이지 수 계산
+        // Calculate the number of pages to display on each side of the current page
         const sideButtons = Math.floor(maxButtons / 2);
         let start = currentPage - sideButtons;
         let end = currentPage + sideButtons;
 
-        // 시작 페이지가 0보다 작은 경우 조정
+        // Adjust if start page is less than 0
         if (start < 0) {
             end += Math.abs(start);
             start = 0;
         }
 
-        // 끝 페이지가 총 페이지수를 초과하는 경우 조정
+        // Adjust if end page exceeds total pages
         if (end >= totalPages) {
             start -= end - totalPages + 1;
             end = totalPages - 1;
         }
 
-        // 시작 페이지가 0보다 작아지지 않도록 재조정
+        // Re-adjust to ensure start page is not less than 0
         start = Math.max(start, 0);
 
         return Array.from({ length: end - start + 1 }, (_, i) => start + i);
     };
 
-    // PiggyCell 데이터로 NFT 민팅하는 함수 추가
+    // Add function to mint NFTs with PiggyCell data
     const handlePiggyCellMint = async () => {
         setIsLoading(true);
         try {
@@ -570,7 +570,7 @@ function App() {
         }
     };
 
-    // 모달 헬퍼 함수들
+    // Modal helper functions
     const openModal = (modalType, data = {}) => {
         setModalState({
             activeModal: modalType,
@@ -585,7 +585,7 @@ function App() {
         });
     };
 
-    // 입력값 업데이트 헬퍼 함수
+    // Input value update helper function
     const updateInput = (type, field, value) => {
         setInputState((prev) => ({
             ...prev,
@@ -596,7 +596,7 @@ function App() {
         }));
     };
 
-    // 모달 렌더링 함수
+    // Render modal function
     const renderModal = () => {
         const modalProps = {
             [CONFIG.MODALS.TRANSFER]: {
